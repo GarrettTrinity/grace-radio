@@ -85,55 +85,68 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def load_data():
+    loaded_from_disk = False
     # 1. Load persistent data (Library, Schedule)
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            try:
+        try:
+            with open(DATA_FILE, 'r') as f:
                 data = json.load(f)
                 state['library'] = data.get('library', [])
                 state['schedule'] = data.get('schedule', [])
-            except: pass
+                loaded_from_disk = True
+                print(f"LOADED {len(state['library'])} items from {DATA_FILE}")
+        except Exception as e:
+            print(f"ERROR LOADING DATA_FILE: {e}")
             
-    # BOOTSTRAP: If library is empty, scan local static/media (The "Original 40")
-    if not state['library']:
-        print("Library is empty. Bootstrapping from bundled content...")
-        
-        # Path to bundled content in git repo
-        local_static = os.path.join(app.root_path, 'static', 'media')
-        
-        if os.path.exists(local_static):
-            for filename in os.listdir(local_static):
-                if allowed_file(filename):
-                    # Check if already in library (redundant if empty, but safe)
-                    if any(m['filename'] == filename for m in state['library']):
-                        continue
-                        
-                    filepath = os.path.join(local_static, filename)
-                    duration = get_media_duration(filepath)
+    # BOOTSTRAP: If library is empty (New Install OR Corrupt DB)
+    # We want to ensure we at least have the bundled music.
+    # But checking 'not state["library"]' acts as the trigger.
+    
+    # Check bundled content
+    local_static = os.path.join(app.root_path, 'static', 'media')
+    
+    # We should ALWAYS check for bundled content to add any "Hardcoded" songs that might be missing from DB
+    if os.path.exists(local_static):
+        added_count = 0
+        for filename in os.listdir(local_static):
+            if allowed_file(filename):
+                # Check if already in library (by filename)
+                # IMPORTANT: Use string comparison
+                if any(m['filename'] == filename for m in state['library']):
+                    continue
                     
-                    media_item = {
-                        "id": str(int(time.time()*1000) + random.randint(1,999)),
-                        "title": os.path.splitext(filename)[0].replace('_', ' '),
-                        "filename": filename,
-                        "duration": duration,
-                        "category": "Music", # Default to Music for bootstrap
-                        "type": "audio",
-                        "added_at": time.time()
-                    }
-                    state['library'].append(media_item)
-            
-            # Save initialized state to the new disk
+                filepath = os.path.join(local_static, filename)
+                duration = get_media_duration(filepath)
+                
+                media_item = {
+                    "id": str(int(time.time()*1000) + random.randint(1,999)),
+                    "title": os.path.splitext(filename)[0].replace('_', ' '),
+                    "filename": filename,
+                    "duration": duration,
+                    "category": "Music", # Default to Music for bootstrap
+                    "type": "audio",
+                    "added_at": time.time()
+                }
+                state['library'].append(media_item)
+                added_count += 1
+        
+        if added_count > 0:
+            print(f"Bootstrapped/Merged {added_count} items from bundled static/media")
             save_data()
     
     # 2. Load volatile state (Current Track)
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, 'r') as f:
-            try:
+        try:
+             with open(STATE_FILE, 'r') as f:
                 s_data = json.load(f)
                 state['current_track'] = s_data.get('current_track')
                 state['playing'] = s_data.get('playing', False)
-                state['queue'] = s_data.get('queue', state['queue'])
-            except: pass
+                
+                # Restore queue if validity checks pass
+                q = s_data.get('queue', [])
+                # Filter strict string
+                state['queue'] = [str(x) for x in q]
+        except: pass
 
 def save_data():
     # Save persistent data
