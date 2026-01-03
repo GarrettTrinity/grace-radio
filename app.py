@@ -18,13 +18,14 @@ app = Flask(__name__)
 # In production on Render/Heroku, local files often wiped on restart unless using a Volume.
 UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'static/media')
 DATA_FILE = os.environ.get('DATA_FILE', 'data.json')
+STATE_FILE = os.environ.get('STATE_FILE', 'state.json') # Ephemeral playback state
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Ensure directory exists (important for cloud where folders might not exist in repo)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Global State
+# Global State (In-Memory Cache)
 state = {
     "library": [],        # List of media objects: {id, title, filename, duration, type, category}
     "queue": [],          # List of media IDs to play next (User manual queue)
@@ -37,21 +38,41 @@ state = {
 state_lock = threading.Lock()
 
 def load_data():
+    # Load persistent data (Library, Schedule)
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r') as f:
             try:
                 data = json.load(f)
                 state['library'] = data.get('library', [])
                 state['schedule'] = data.get('schedule', [])
-            except:
-                pass
+            except: pass
+    
+    # Load volatile state (Current Track) for Sync
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as f:
+            try:
+                s_data = json.load(f)
+                state['current_track'] = s_data.get('current_track')
+                state['playing'] = s_data.get('playing', False)
+                state['queue'] = s_data.get('queue', state['queue']) # Queue changes fast too
+            except: pass
 
 def save_data():
+    # Save persistent data
     with open(DATA_FILE, 'w') as f:
         json.dump({
             "library": state['library'],
             "schedule": state['schedule']
         }, f, indent=2)
+
+def save_state():
+    # Save volatile state separate for fast writes
+    with open(STATE_FILE, 'w') as f:
+        json.dump({
+            "current_track": state['current_track'],
+            "playing": state['playing'],
+            "queue": state['queue']
+        }, f)
 
 load_data()
 
@@ -233,6 +254,10 @@ def radio_loop():
                     else:
                         state['current_track'] = None
                         state['playing'] = False
+                    
+                    # Sync state to disk immediately
+                    save_state()
+                    save_data() # Save queue/schedule changes too
 
         except Exception as e:
             print(f"CRITICAL RADIO LOOP ERROR: {e}")
@@ -281,7 +306,17 @@ def admin_dashboard():
 
 @app.route('/api/status')
 def get_status():
+    # Force reload of state to ensure we see what the background worker is doing
     with state_lock:
+        try:
+            if os.path.exists(STATE_FILE):
+                with open(STATE_FILE, 'r') as f:
+                    s_data = json.load(f)
+                    # We only update playback info, not library (expensive)
+                    state['current_track'] = s_data.get('current_track')
+                    state['playing'] = s_data.get('playing')
+        except: pass
+
         now = time.time()
         current = state['current_track']
         
