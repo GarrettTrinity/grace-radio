@@ -527,6 +527,21 @@ def upload_file():
         with state_lock:
             state['library'].extend(uploaded_items)
             save_data()
+            
+            # VERIFY WRITE
+            try:
+                with open(DATA_FILE, 'r') as f:
+                    verify_data = json.load(f)
+                    verify_os = verify_data.get('library', [])
+                    # Check if our new IDs are in there
+                    for item in uploaded_items:
+                        if not any(str(v['id']) == str(item['id']) for v in verify_os):
+                            print(f"CRITICAL: Uploaded item {item['id']} NOT FOUND in disk after save!")
+                            return jsonify({"error": "Disk Write Failed"}), 500
+                    print(f"VERIFICATION SUCCESS: {len(verify_os)} items on disk.")
+            except Exception as e:
+                print(f"VERIFICATION ERROR: {e}")
+                
         return jsonify(uploaded_items)
     
     return jsonify({'error': 'No valid files allowed'}), 400
