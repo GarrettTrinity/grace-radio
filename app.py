@@ -594,8 +594,9 @@ def add_to_queue():
     media_id = data.get('id')
     with state_lock:
         # verify exists
-        if any(m['id'] == media_id for m in state['library']):
-            state['queue'].append(media_id)
+        # Fix: Ensure strict string comparison here too, in case library has int but we received str
+        if any(str(m['id']) == str(media_id) for m in state['library']):
+            state['queue'].append(str(media_id)) # Store as string
             save_state() # SYNC: Write to disk so Radio Loop sees it
             return jsonify({"status": "added"})
     return jsonify({"error": "not found"}), 404
