@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grace Radio - Live Broadcast</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <nav class="sidebar">
+            <div class="brand">
+                <h1>Grace Radio</h1>
+                <div class="live-indicator">
+                    <span class="dot"></span> LIVE
+                </div>
+            </div>
+
+            <div class="menu">
+                <button class="menu-btn active" onclick="switchTab('player-view')">Now Playing</button>
+                <button class="menu-btn" onclick="switchTab('library-view')">Media Library</button>
+                <button class="menu-btn" onclick="switchTab('schedule-view')">Schedule</button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="content">
+
+            <!-- VIEW: PLAYER (Home) -->
+            <div id="player-view" class="view active">
+                <div class="player-hero">
+                    <div class="album-art-placeholder" id="current-art">
+                        <span id="art-initials">♫</span>
+                    </div>
+                    <div class="track-info">
+                        <h2 id="current-title">Waiting for broadcast...</h2>
+                        <p id="current-category" class="category-badge">Offline</p>
+
+                        <div class="progress-container">
+                            <div class="progress-bar" id="progress-bar"></div>
+                        </div>
+                        <div class="time-info">
+                            <span id="current-time">0:00</span>
+                            <span id="total-time">0:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="up-next-section">
+                    <h3>Up Next</h3>
+                    <div class="queue-list" id="active-queue">
+                        <!-- Queue items injected here -->
+                        <p class="empty-state">Queue is empty. Shuffling playlist.</p>
+                    </div>
+                </div>
+
+                <!-- Hidden Audio Element -->
+                <audio id="radio-audio" preload="auto"></audio>
+
+                <div class="controls">
+                    <!-- Client side mute/volume logic mainly, since it's "Live" we can't pause really, just mute -->
+                    <button class="control-btn" id="mute-btn" onclick="toggleMute()">Mute</button>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1"
+                        onchange="setVolume(this.value)">
+                    <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
+                </div>
+            </div>
+
+            <!-- VIEW: LIBRARY -->
+            <div id="library-view" class="view">
+                <div class="view-header">
+                    <h2>Media Library</h2>
+                    {% if is_admin %}
+                    <button class="btn-primary" onclick="openUploadModal()">+ Upload Media</button>
+                    {% endif %}
+                </div>
+
+                <div class="filter-bar">
+                    <button class="filter-btn active" onclick="filterLibrary('all')">All</button>
+                    <button class="filter-btn" onclick="filterLibrary('Music')">Music</button>
+                    <button class="filter-btn" onclick="filterLibrary('Sermon')">Sermons</button>
+                    <button class="filter-btn" onclick="filterLibrary('Announcement')">Announcements</button>
+                </div>
+
+                <div class="library-grid" id="library-list">
+                    <!-- Items injected here -->
+                </div>
+            </div>
+
+            <!-- VIEW: SCHEDULE -->
+            <div id="schedule-view" class="view">
+                <div class="view-header">
+                    <h2>Broadcast Schedule</h2>
+                </div>
+                <!-- Simple list of scheduled events -->
+                <div class="schedule-list" id="schedule-list">
+                    <!-- Items injected here -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL: UPLOAD -->
+    {% if is_admin %}
+    <div id="upload-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeUploadModal()">&times;</span>
+            <h2>Upload Media</h2>
+            <form id="upload-form">
+                <div class="form-group">
+                    <label>File(s)</label>
+                    <input type="file" name="file" required accept="audio/*,video/*" multiple>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select name="category">
+                        <option value="Music">Music</option>
+                        <option value="Sermon">Sermon</option>
+                        <option value="Announcement">Announcement</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Upload</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SCHEDULE -->
+    <div id="schedule-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeScheduleModal()">&times;</span>
+            <h2>Schedule Broadcast</h2>
+            <p>Select a time for: <b id="schedule-item-title"></b></p>
+            <form id="schedule-form">
+                <input type="hidden" id="schedule-media-id">
+                <div class="form-group">
+                    <label>Run At</label>
+                    <input type="datetime-local" id="schedule-time" required>
+                </div>
+                <button type="submit" class="btn-primary">Set Schedule</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        // Server-side flag
+        var IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+    </script>
+    <script src="/static/js/main.js"></script>
+</body>
+
+</html>

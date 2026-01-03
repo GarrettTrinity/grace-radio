@@ -1,0 +1,5 @@
+flask
+mutagen
+werkzeug
+gunicorn
+python-dotenv
