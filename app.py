@@ -258,6 +258,20 @@ def radio_loop():
                             save_data()
 
                 if should_pick:
+                    # SYNC: Read fresh queue from disk before deciding
+                    # We need to be careful not to overwrite 'current_track' if playing
+                    # Just read 'queue' from state.json
+                    try:
+                        if os.path.exists(STATE_FILE):
+                             with open(STATE_FILE, 'r') as f:
+                                 s_data = json.load(f)
+                                 # Merge external queue additions
+                                 disk_queue = s_data.get('queue', [])
+                                 # If disk queue has items and local doesn't, or different, take disk
+                                 # Simplest: Trust disk fully for queue
+                                 state['queue'] = disk_queue
+                    except: pass
+
                     next_media = None
 
                     # 1. Schedule
@@ -558,6 +572,7 @@ def add_to_queue():
         # verify exists
         if any(m['id'] == media_id for m in state['library']):
             state['queue'].append(media_id)
+            save_state() # SYNC: Write to disk so Radio Loop sees it
             return jsonify({"status": "added"})
     return jsonify({"error": "not found"}), 404
 
