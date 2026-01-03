@@ -251,6 +251,17 @@ def upload_file():
     
     return jsonify({'error': 'No valid files allowed'}), 400
 
+@app.route('/api/upload/cookies', methods=['POST'])
+def upload_cookies():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file:
+        # Save as cookies.txt in root
+        file.save('cookies.txt')
+        return jsonify({"status": "cookies_updated"})
+    return jsonify({'error': 'Failed'}), 400
+
 @app.route('/api/upload/youtube', methods=['POST'])
 def upload_youtube():
     data = request.json
@@ -264,7 +275,12 @@ def upload_youtube():
             'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s'),
             'postprocessors': [], 
             'restrictfilenames': True,
+            'nocheckcertificate': True,
         }
+        
+        # Check for cookies.txt
+        if os.path.exists('cookies.txt'):
+            ydl_opts['cookiefile'] = 'cookies.txt'
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)

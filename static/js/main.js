@@ -344,3 +344,31 @@ if (ytForm) {
         e.target.reset();
     };
 }
+
+const cookieForm = document.getElementById('cookies-form');
+if (cookieForm) {
+    cookieForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const btn = e.target.querySelector('button');
+        btn.innerText = "Updating...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/upload/cookies', {
+                method: 'POST',
+                body: fd
+            });
+            if (res.ok) {
+                alert("Cookies updated! Try importing again.");
+            } else {
+                alert("Cookie update failed.");
+            }
+        } catch (err) {
+            alert("Error: " + err);
+        }
+        btn.innerText = "Update Cookies";
+        btn.disabled = false;
+        e.target.reset();
+    };
+}
