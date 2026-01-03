@@ -48,7 +48,8 @@ function setVolume(val) {
 
 async function updateStatus() {
     try {
-        const res = await fetch('/api/status');
+        // Cache bust to ensure fresh state on mobile
+        const res = await fetch('/api/status?t=' + Date.now());
         const data = await res.json();
 
         // Sync time
@@ -120,29 +121,46 @@ function handleAudioSync(state) {
     const url = `/static/media/${state.filename}`;
     const serverElapsed = state.elapsed;
 
-    // Check if new track
+    // Check if new track, OR if track ended and restarted (loop issue)
     if (currentMediaId !== state.id) {
         console.log("New Track Detected:", state.title);
         currentMediaId = state.id;
-        audio.src = url;
+
+        // Mobile Fix: Append timestamp to force browser to re-fetch audio
+        let safeUrl = url;
+        if (safeUrl.indexOf('?') === -1) safeUrl += '?t=' + Date.now();
+        else safeUrl += '&t=' + Date.now();
+
+        audio.src = safeUrl;
         audio.load();
 
-        // Listen for metadata before seeking
-        audio.onloadedmetadata = () => {
+        const playPromise = () => {
             audio.currentTime = serverElapsed;
             const p = audio.play();
             if (p) p.catch(e => {
-                console.log("Autoplay blocked, waiting for interaction", e);
-                // On mobile, if blocked, we might show a button, but usually if 
-                // the user clicked 'Sync' once, it persists. 
-                // However, if the track ended naturally, we should be fine.
+                console.log("Autoplay blocked/failed", e);
             });
         };
+
+        // Listen for metadata before seeking
+        // If already ready, run immediately
+        if (audio.readyState >= 1) {
+            playPromise();
+        } else {
+            audio.onloadedmetadata = playPromise;
+        }
+
     } else {
         // Same track, check sync
-        // If drift > 2 seconds, snap
-        if (Math.abs(audio.currentTime - serverElapsed) > 2.0) {
+        // If drift > 3 seconds, snap (Relaxed for mobile)
+        if (Math.abs(audio.currentTime - serverElapsed) > 3.0) {
             console.log("Sync drifting, snapping...", audio.currentTime, serverElapsed);
+            audio.currentTime = serverElapsed;
+        }
+
+        // If server says elapsed is small (just started) but we are at end, Force Reset
+        if (serverElapsed < 5 && audio.currentTime > (state.duration - 5)) {
+            console.log("Local finished but Server restarted? Resetting.");
             audio.currentTime = serverElapsed;
         }
 
