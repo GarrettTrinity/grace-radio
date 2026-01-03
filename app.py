@@ -69,104 +69,116 @@ def allowed_file(filename):
 # --- Scheduler / Radio Logic ---
 def radio_loop():
     print("--- Radio Loop Started ---")
+    
+    # Simple file logger function
+    def log_loop(msg):
+        try:
+            with open("loop_debug.log", "a") as f:
+                f.write(f"[{time.ctime()}] {msg}\n")
+        except: pass
+
     while True:
         try:
             with state_lock:
                 now = time.time()
                 current = state['current_track']
                 
-                # --- Cleanup Temporary Files ---
+                # --- Cleanup ---
                 to_remove = []
                 for item in state['library']:
-                    # Default to removing if > 24h and Temporary
                     if item.get('category') == 'Temporary' and item.get('added_at'):
-                        # 24 hours = 86400 seconds
                         if now - item.get('added_at') > 86400:
                             to_remove.append(item)
                 
                 for item in to_remove:
                     try:
-                        print(f"Removing Cleaned Up Temp File: {item['title']}")
                         os.remove(os.path.join(app.config['UPLOAD_FOLDER'], item['filename']))
-                    except Exception as e:
-                        print(f"Cleanup error: {e}")
-                    
+                    except: pass
                     if item in state['library']:
                         state['library'].remove(item)
                 
                 if to_remove:
                     save_data()
 
-                # --- Playback Logic ---
-                # Check if current song is finished or nothing is playing
-                # Safety checks for duration
-                duration = current['duration'] if current and isinstance(current.get('duration'), (int, float)) and current['duration'] > 0 else 10
+                # --- Playback Decision ---
+                should_pick = False
                 
-                if not current or (now - current['start_time'] >= duration + 2): # +2s buffer
+                if not current:
+                    should_pick = True
+                    log_loop("Picking: Current is None")
+                else:
+                    dur = current.get('duration', 1)
+                    if not isinstance(dur, (int, float)) or dur <= 0: dur = 10
                     
-                    # Update 'last_played_at'
-                    if current:
-                         lib_item = next((m for m in state['library'] if m['id'] == current['id']), None)
-                         if lib_item:
-                             lib_item['last_played_at'] = now
-                             save_data()
+                    elapsed = now - current['start_time']
+                    if elapsed >= dur + 1: # 1s buffer
+                        should_pick = True
+                        log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {dur}s)")
+                        
+                        # Update Last Played
+                        lib_item = next((m for m in state['library'] if m['id'] == current['id']), None)
+                        if lib_item:
+                            lib_item['last_played_at'] = now
+                            save_data()
 
-                    # Pick next song
+                if should_pick:
                     next_media = None
 
-                    # 1. Check Schedule (Expired/Due events)
+                    # 1. Schedule
                     state['schedule'].sort(key=lambda x: x['run_at'])
-                    
                     due_idx = -1
                     for i, item in enumerate(state['schedule']):
                         if item['run_at'] <= now:
                             due_idx = i
                             break
-                    
                     if due_idx != -1:
                         item = state['schedule'].pop(due_idx)
                         media = next((m for m in state['library'] if m['id'] == item['media_id']), None)
                         if media:
                             next_media = media
-                            print(f"Playing SCHEDULED: {media['title']}")
-                    
-                    # 2. Check User Queue
+                            log_loop(f"Selected SCHEDULED: {media['title']}")
+
+                    # 2. Queue
                     if not next_media and state['queue']:
                          media_id = state['queue'].pop(0)
                          media = next((m for m in state['library'] if m['id'] == media_id), None)
                          if media:
                              next_media = media
-                             print(f"Playing QUEUED: {media['title']}")
+                             log_loop(f"Selected QUEUED: {media['title']}")
 
-                    # 3. Shuffle (Exclude Temporary)
-                    if not next_media and state['library']:
-                         candidates = [
-                             m for m in state['library'] 
-                             if m.get('category') != 'Temporary'
-                         ]
-                         
-                         # Fallback if library only has temporary
-                         if not candidates and state['library']:
-                             candidates = state['library']
-
-                         if candidates:
-                             next_media = random.choice(candidates)
-                             print(f"Playing SHUFFLE: {next_media['title']}")
+                    # 3. Shuffle
+                    if not next_media:
+                        # Priority 1: Music
+                        cands = [m for m in state['library'] if m.get('category') == 'Music']
+                        if not cands:
+                            # Priority 2: Anything NOT Temporary
+                            cands = [m for m in state['library'] if m.get('category') != 'Temporary']
+                        if not cands:
+                            # Priority 3: Anything at all (Panic fallback)
+                            cands = state['library']
+                        
+                        if cands:
+                             next_media = random.choice(cands)
+                             log_loop(f"Selected SHUFFLE: {next_media['title']}")
+                        else:
+                             log_loop("No candidates found in library!")
 
                     if next_media:
                         state['current_track'] = next_media.copy()
                         state['current_track']['start_time'] = time.time()
                         state['playing'] = True
                         state['history'].append(next_media['id'])
-                        if len(state['history']) > 20:
-                            state['history'].pop(0)
+                        if len(state['history']) > 20: state['history'].pop(0)
                     else:
                         state['current_track'] = None
                         state['playing'] = False
 
         except Exception as e:
             print(f"CRITICAL RADIO LOOP ERROR: {e}")
-            # Prevent rapid CPU spike on error loop
+            try:
+                with open("loop_debug.log", "a") as f:
+                    f.write(f"CRASH: {e}\n")
+            except: pass
             time.sleep(5)
             
         time.sleep(1)
