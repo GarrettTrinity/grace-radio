@@ -36,7 +36,7 @@ else:
     # DEBUG: Print what we see
     if os.path.exists('/var/lib/grace_radio'):
         STORAGE_DIR = '/var/lib/grace_radio'
-        print(f"FOUND PERSISTENT DISK at {STORAGE_DIR}")
+        print(f"USING PERSISTENT DISK: {STORAGE_DIR}")
         # Test write permission
         try:
             with open(os.path.join(STORAGE_DIR, 'write_test.txt'), 'w') as f:
