@@ -58,8 +58,20 @@ state = {
 
 state_lock = threading.Lock()
 
+def get_media_duration(filepath):
+    try:
+        audio = MutagenFile(filepath)
+        if audio is not None and audio.info is not None:
+            return audio.info.length
+    except Exception as e:
+        print(f"Error reading duration: {e}")
+    return 0
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def load_data():
-    # Load persistent data (Library, Schedule)
+    # 1. Load persistent data (Library, Schedule)
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r') as f:
             try:
@@ -67,15 +79,46 @@ def load_data():
                 state['library'] = data.get('library', [])
                 state['schedule'] = data.get('schedule', [])
             except: pass
+            
+    # BOOTSTRAP: If library is empty, scan local static/media (The "Original 40")
+    if not state['library']:
+        print("Library is empty. Bootstrapping from bundled content...")
+        
+        # Path to bundled content in git repo
+        local_static = os.path.join(app.root_path, 'static', 'media')
+        
+        if os.path.exists(local_static):
+            for filename in os.listdir(local_static):
+                if allowed_file(filename):
+                    # Check if already in library (redundant if empty, but safe)
+                    if any(m['filename'] == filename for m in state['library']):
+                        continue
+                        
+                    filepath = os.path.join(local_static, filename)
+                    duration = get_media_duration(filepath)
+                    
+                    media_item = {
+                        "id": str(int(time.time()*1000) + random.randint(1,999)),
+                        "title": os.path.splitext(filename)[0].replace('_', ' '),
+                        "filename": filename,
+                        "duration": duration,
+                        "category": "Music", # Default to Music for bootstrap
+                        "type": "audio",
+                        "added_at": time.time()
+                    }
+                    state['library'].append(media_item)
+            
+            # Save initialized state to the new disk
+            save_data()
     
-    # Load volatile state (Current Track) for Sync
+    # 2. Load volatile state (Current Track)
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, 'r') as f:
             try:
                 s_data = json.load(f)
                 state['current_track'] = s_data.get('current_track')
                 state['playing'] = s_data.get('playing', False)
-                state['queue'] = s_data.get('queue', state['queue']) # Queue changes fast too
+                state['queue'] = s_data.get('queue', state['queue'])
             except: pass
 
 def save_data():
@@ -97,17 +140,7 @@ def save_state():
 
 load_data()
 
-def get_media_duration(filepath):
-    try:
-        audio = MutagenFile(filepath)
-        if audio is not None and audio.info is not None:
-            return audio.info.length
-    except Exception as e:
-        print(f"Error reading duration: {e}")
-    return 0
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # --- Singleton Management ---
 LOCK_FILE = os.path.join(tempfile.gettempdir(), 'radio_heartbeat.lock')
