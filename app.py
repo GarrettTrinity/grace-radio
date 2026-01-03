@@ -275,12 +275,20 @@ def radio_loop():
                             log_loop(f"Selected SCHEDULED: {media['title']}")
 
                     # 2. Queue
-                    if not next_media and state['queue']:
-                         media_id = state['queue'].pop(0)
+                    # Loop through queue until we find a valid item or queue is empty
+                    while not next_media and state['queue']:
+                         media_id = state['queue'][0] # Peek first
                          media = next((m for m in state['library'] if m['id'] == media_id), None)
+                         
                          if media:
+                             # Valid item found, consume it
+                             state['queue'].pop(0)
                              next_media = media
                              log_loop(f"Selected QUEUED: {media['title']}")
+                         else:
+                             # Invalid/Deleted item in queue, remove and continue
+                             log_loop(f"Found invalid ID in queue: {media_id}")
+                             state['queue'].pop(0)
 
                     # 3. Shuffle
                     if not next_media:
