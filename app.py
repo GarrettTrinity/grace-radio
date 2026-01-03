@@ -123,11 +123,15 @@ def load_data():
 
 def save_data():
     # Save persistent data
-    with open(DATA_FILE, 'w') as f:
-        json.dump({
-            "library": state['library'],
-            "schedule": state['schedule']
-        }, f, indent=2)
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump({
+                "library": state['library'],
+                "schedule": state['schedule']
+            }, f, indent=2)
+        print(f"saved data to {DATA_FILE}: {len(state['library'])} items")
+    except Exception as e:
+        print(f"Error saving data: {e}")
 
 def save_state():
     # Save volatile state separate for fast writes
