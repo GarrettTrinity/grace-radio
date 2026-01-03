@@ -14,15 +14,36 @@ from mutagen import File as MutagenFile
 app = Flask(__name__)
 
 # Configuration
-# Use /tmp for ephemeral cloud storage if not configured, or a specific persistent path
-# In production on Render/Heroku, local files often wiped on restart unless using a Volume.
-UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'static/media')
-DATA_FILE = os.environ.get('DATA_FILE', 'data.json')
-STATE_FILE = os.environ.get('STATE_FILE', 'state.json') # Ephemeral playback state
+# "Cloud Amnesia" Fix: Check for persistent disk mount
+STORAGE_DIR = os.environ.get('STORAGE_DIR', '/var/lib/grace_radio')
+if not os.path.exists(STORAGE_DIR):
+    # Fallback to local 'static/media' if no disk mounted (Development/First Run)
+    STORAGE_DIR = 'static/media' # Backward compatibility for local files
+    # Actually, we need separation. 
+    # Logic:
+    # 1. System tries to read from STORAGE_DIR for *Dynamic* content.
+    # 2. But we also have "Built-in" content in 'static/media'.
+    # We should probably combine them or serve from both.
+    # Simpler: Just set UPLOAD_FOLDER to the storage dir.
+    
+# If on Render and Disk is mounted, STORAGE_DIR will exist.
+# But for local dev (Windows), it won't.
+if os.name == 'nt': # Windows
+    STORAGE_DIR = 'static/media'
+else:
+    # Linux (Render) -> Check if mount exists, else fallback
+    if not os.path.exists('/var/lib/grace_radio'):
+        STORAGE_DIR = 'static/media'
+    else:
+        STORAGE_DIR = '/var/lib/grace_radio'
+
+UPLOAD_FOLDER = STORAGE_DIR
+DATA_FILE = os.path.join(STORAGE_DIR, 'data.json')
+STATE_FILE = os.path.join(STORAGE_DIR, 'state.json')
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# Ensure directory exists (important for cloud where folders might not exist in repo)
+# Ensure directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Global State (In-Memory Cache)
@@ -531,7 +552,15 @@ def delete_media(media_id):
         item = next((m for m in state['library'] if m['id'] == media_id), None)
         if item:
             try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], item['filename']))
+                # Try delete from UPLOAD_FOLDER (Persistent)
+                path_p = os.path.join(app.config['UPLOAD_FOLDER'], item['filename'])
+                if os.path.exists(path_p):
+                    os.remove(path_p)
+                else:
+                    # Try delete from Local Static (Fallback)
+                    path_l = os.path.join(app.root_path, 'static', 'media', item['filename'])
+                    if os.path.exists(path_l):
+                         os.remove(path_l)
             except:
                 pass
             state['library'] = [m for m in state['library'] if m['id'] != media_id]
