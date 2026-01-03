@@ -453,3 +453,69 @@ body {
 .btn-primary:hover {
     background: #7b2cbf;
 }
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 15px;
+    }
+
+    .brand {
+        margin-bottom: 0;
+    }
+
+    .brand h1 {
+        font-size: 1.2rem;
+    }
+
+    .menu {
+        flex-direction: row;
+        gap: 5px;
+    }
+
+    .menu-btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        background: var(--bg-card);
+    }
+
+    .menu-btn.active {
+        border-left: none;
+        border-bottom: 2px solid var(--accent-bright);
+    }
+
+    .content {
+        padding: 15px;
+    }
+
+    .player-hero {
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+
+    .album-art-placeholder {
+        width: 150px;
+        height: 150px;
+        margin-bottom: 20px;
+    }
+
+    .track-info h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Make buttons stack on very small screens if needed */
+    .controls {
+        flex-wrap: wrap;
+    }
+}

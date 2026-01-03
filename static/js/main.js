@@ -127,10 +127,17 @@ function handleAudioSync(state) {
         audio.src = url;
         audio.load();
 
-        // Seek to offset
-        audio.currentTime = serverElapsed;
-        const p = audio.play();
-        if (p) p.catch(e => console.log("Play failed", e));
+        // Listen for metadata before seeking
+        audio.onloadedmetadata = () => {
+            audio.currentTime = serverElapsed;
+            const p = audio.play();
+            if (p) p.catch(e => {
+                console.log("Autoplay blocked, waiting for interaction", e);
+                // On mobile, if blocked, we might show a button, but usually if 
+                // the user clicked 'Sync' once, it persists. 
+                // However, if the track ended naturally, we should be fine.
+            });
+        };
     } else {
         // Same track, check sync
         // If drift > 2 seconds, snap
@@ -139,11 +146,22 @@ function handleAudioSync(state) {
             audio.currentTime = serverElapsed;
         }
 
-        if (audio.paused) {
-            audio.play().catch(e => { });
+        if (audio.paused && userInteracted) {
+            const p = audio.play();
+            if (p) p.catch(e => { });
         }
     }
 }
+
+// Add 'ended' listener to bridge gap
+audio.onended = () => {
+    console.log("Track ended locally. Waiting for server...");
+    // We could loop the last 1s of silence or just wait.
+    // The poll loop will catch the new track soon.
+    // To keep the audio session "hot", some apps play a silent track here.
+    // tailored to be simple:
+    setTimeout(updateStatus, 500); // Check server sooner
+};
 
 function formatTime(sec) {
     sec = Math.floor(sec);
