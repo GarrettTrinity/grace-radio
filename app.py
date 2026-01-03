@@ -493,6 +493,7 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            print(f"DEBUG: Saving file to {path}") # LOGGING
             file.save(path)
             
             duration = get_media_duration(path)
