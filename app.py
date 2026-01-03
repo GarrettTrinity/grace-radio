@@ -314,14 +314,15 @@ def radio_loop():
                                  except: pass
                              
                              # Try again
-                             media = next((m for m in state['library'] if m['id'] == media_id), None)
+                             # Ensure strict string comparison
+                             media = next((m for m in state['library'] if str(m['id']) == str(media_id)), None)
                              if media:
                                  state['queue'].pop(0)
                                  next_media = media
                                  log_loop(f"Selected QUEUED (after reload): {media['title']}")
                              else:
                                  # Truly invalid
-                                 log_loop(f"Found invalid ID in queue: {media_id}")
+                                 log_loop(f"Found invalid ID in queue: {media_id} (Library has {len(state['library'])} items)")
                                  state['queue'].pop(0)
 
                     # 3. Shuffle
