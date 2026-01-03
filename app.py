@@ -260,6 +260,15 @@ def delete_media(media_id):
     return jsonify({"error": "not found"}), 404
 
 
+@app.route('/api/skip', methods=['POST'])
+def skip_track():
+    with state_lock:
+        state['current_track'] = None
+        state['playing'] = False
+        # loop runs every 1s, will pick up next immediately
+    return jsonify({"status": "skipped"})
+
+
 if __name__ == '__main__':
     # Local development
     port = int(os.environ.get('PORT', 5000))

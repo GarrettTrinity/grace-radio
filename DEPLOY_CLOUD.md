@@ -44,3 +44,10 @@ If you upgrade to a paid Render plan (~$7/mo), you can add a **Disk**.
 
 ### Option B: Keep it Local (Free)
 If you don't want to pay, stick to the **ngrok** method described in `GOING_PUBLIC.md`. It runs on YOUR computer, so your files are always safe on your hard drive.
+
+## Step 4: Updating the App
+To make changes (like adding features or fixing bugs):
+1. Ask the AI to make the code changes.
+2. Run `deploy_changes.bat` in this folder.
+3. Enter a short description.
+4. Render will detect the change and auto-update your site in ~1 minute.
