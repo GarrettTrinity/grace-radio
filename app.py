@@ -251,16 +251,25 @@ def upload_file():
     
     return jsonify({'error': 'No valid files allowed'}), 400
 
+import tempfile
+
+# ...
+
 @app.route('/api/upload/cookies', methods=['POST'])
 def upload_cookies():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file:
-        # Save as cookies.txt in root
-        file.save('cookies.txt')
-        return jsonify({"status": "cookies_updated"})
-    return jsonify({'error': 'Failed'}), 400
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        file = request.files['file']
+        if file:
+            # Save to /tmp/cookies.txt (safer specific path)
+            cookie_path = os.path.join(tempfile.gettempdir(), 'grace_radio_cookies.txt')
+            file.save(cookie_path)
+            return jsonify({"status": "cookies_updated"})
+        return jsonify({'error': 'No file selected'}), 400
+    except Exception as e:
+        print(f"Cookie Upload Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload/youtube', methods=['POST'])
 def upload_youtube():
@@ -278,9 +287,10 @@ def upload_youtube():
             'nocheckcertificate': True,
         }
         
-        # Check for cookies.txt
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookiefile'] = 'cookies.txt'
+        # Check for cookies in tmp
+        cookie_path = os.path.join(tempfile.gettempdir(), 'grace_radio_cookies.txt')
+        if os.path.exists(cookie_path):
+            ydl_opts['cookiefile'] = cookie_path
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)

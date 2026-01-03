@@ -333,8 +333,14 @@ if (ytForm) {
                 fetchLibrary();
                 alert("Imported successfully! It is in 'Temporary' category.");
             } else {
-                const d = await res.json();
-                alert("Import failed: " + (d.error || 'Unknown'));
+                // Try JSON, fallback to text
+                try {
+                    const d = await res.json();
+                    alert("Import failed: " + (d.error || 'Unknown'));
+                } catch (e) {
+                    const text = await res.text();
+                    alert("Server Error (HTML): " + text.substring(0, 150));
+                }
             }
         } catch (err) {
             alert("Error: " + err);
@@ -362,7 +368,14 @@ if (cookieForm) {
             if (res.ok) {
                 alert("Cookies updated! Try importing again.");
             } else {
-                alert("Cookie update failed.");
+                // Try JSON, fallback to text
+                try {
+                    const d = await res.json();
+                    alert("Cookie update failed: " + (d.error || 'Unknown'));
+                } catch (e) {
+                    const text = await res.text();
+                    alert("Server Error (HTML): " + text.substring(0, 150));
+                }
             }
         } catch (err) {
             alert("Error: " + err);
