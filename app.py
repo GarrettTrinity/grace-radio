@@ -430,6 +430,9 @@ def get_status():
                     # We only update playback info, not library (expensive)
                     state['current_track'] = s_data.get('current_track')
                     state['playing'] = s_data.get('playing')
+                    # Also sync queue so UI is accurate
+                    if 'queue' in s_data:
+                        state['queue'] = s_data['queue']
         except: pass
 
         now = time.time()
