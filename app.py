@@ -183,9 +183,33 @@ def radio_loop():
             
         time.sleep(1)
 
-# Start Radio Thread
-radio_thread = threading.Thread(target=radio_loop, daemon=True)
-radio_thread.start()
+# --- Thread Management ---
+radio_thread = None
+
+def start_radio_thread():
+    global radio_thread
+    if radio_thread is None or not radio_thread.is_alive():
+        print("Starting Radio Loop Thread...")
+        radio_thread = threading.Thread(target=radio_loop, daemon=True)
+        radio_thread.start()
+
+# Start initially
+start_radio_thread()
+
+# Watchdog: Check thread on every request
+@app.before_request
+def watchdog():
+    start_radio_thread()
+
+@app.route('/api/logs')
+def get_logs():
+    # Helper to view what the loop is doing
+    try:
+        with open("loop_debug.log", "r") as f:
+            lines = f.readlines()
+            return "<br>".join(lines[-50:]) # last 50 lines
+    except:
+        return "No logs"
 
 # --- Routes ---
 
