@@ -30,12 +30,25 @@ if not os.path.exists(STORAGE_DIR):
 # But for local dev (Windows), it won't.
 if os.name == 'nt': # Windows
     STORAGE_DIR = 'static/media'
+    print("Running on Windows (Local Dev). Using static/media")
 else:
     # Linux (Render) -> Check if mount exists, else fallback
-    if not os.path.exists('/var/lib/grace_radio'):
-        STORAGE_DIR = 'static/media'
-    else:
+    # DEBUG: Print what we see
+    if os.path.exists('/var/lib/grace_radio'):
         STORAGE_DIR = '/var/lib/grace_radio'
+        print(f"FOUND PERSISTENT DISK at {STORAGE_DIR}")
+        # Test write permission
+        try:
+            with open(os.path.join(STORAGE_DIR, 'write_test.txt'), 'w') as f:
+                f.write('ok')
+            print("Write test successful.")
+        except Exception as e:
+            print(f"WRITE TEST FAILED: {e}")
+            # Fallback if we can't write, otherwise we crash
+            STORAGE_DIR = 'static/media' 
+    else:
+        print("NO PERSISTENT DISK FOUND. Using static/media (Ephemeral)")
+        STORAGE_DIR = 'static/media'
 
 UPLOAD_FOLDER = STORAGE_DIR
 DATA_FILE = os.path.join(STORAGE_DIR, 'data.json')
@@ -45,6 +58,7 @@ ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Ensure directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+print(f"FINAL UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
 
 # Global State (In-Memory Cache)
 state = {
