@@ -72,6 +72,7 @@
                     <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
                     {% if is_admin %}
                     <button class="control-btn" onclick="skipTrack()">Skip</button>
+                    <button class="control-btn" onclick="openYoutubeModal()">YT Import</button>
                     {% endif %}
                 </div>
             </div>
@@ -82,6 +83,8 @@
                     <h2>Media Library</h2>
                     {% if is_admin %}
                     <button class="btn-primary" onclick="openUploadModal()">+ Upload Media</button>
+                    <button class="btn-primary" onclick="openYoutubeModal()" style="margin-left:10px;">+
+                        YouTube</button>
                     {% endif %}
                 </div>
 
@@ -148,6 +151,22 @@
                     <input type="datetime-local" id="schedule-time" required>
                 </div>
                 <button type="submit" class="btn-primary">Set Schedule</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: YOUTUBE -->
+    <div id="youtube-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeYoutubeModal()">&times;</span>
+            <h2>Import from YouTube</h2>
+            <p>Will be added to "Temporary" category and auto-deleted 24h after play.</p>
+            <form id="youtube-form">
+                <div class="form-group">
+                    <label>Video URL</label>
+                    <input type="text" id="yt-url" required placeholder="https://youtube.com/watch?v=...">
+                </div>
+                <button type="submit" class="btn-primary">Import Audio</button>
             </form>
         </div>
     </div>

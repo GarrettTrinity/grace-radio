@@ -3,3 +3,4 @@ mutagen
 werkzeug
 gunicorn
 python-dotenv
+yt-dlp

@@ -4,6 +4,7 @@ import json
 import random
 import threading
 import mimetypes
+import yt_dlp
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from werkzeug.utils import secure_filename
@@ -67,17 +68,49 @@ def allowed_file(filename):
 
 # --- Scheduler / Radio Logic ---
 def radio_loop():
+    print("--- Radio Loop Started ---")
     while True:
-        with state_lock:
-            now = time.time()
-            current = state['current_track']
-            
-            try:
+        try:
+            with state_lock:
+                now = time.time()
+                current = state['current_track']
+                
+                # --- Cleanup Temporary Files ---
+                to_remove = []
+                for item in state['library']:
+                    # Default to removing if > 24h and Temporary
+                    if item.get('category') == 'Temporary' and item.get('added_at'):
+                        # 24 hours = 86400 seconds
+                        if now - item.get('added_at') > 86400:
+                            to_remove.append(item)
+                
+                for item in to_remove:
+                    try:
+                        print(f"Removing Cleaned Up Temp File: {item['title']}")
+                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], item['filename']))
+                    except Exception as e:
+                        print(f"Cleanup error: {e}")
+                    
+                    if item in state['library']:
+                        state['library'].remove(item)
+                
+                if to_remove:
+                    save_data()
+
+                # --- Playback Logic ---
                 # Check if current song is finished or nothing is playing
                 # Safety checks for duration
-                duration = current['duration'] if current and current['duration'] > 0 else 10
+                duration = current['duration'] if current and isinstance(current.get('duration'), (int, float)) and current['duration'] > 0 else 10
                 
-                if not current or (now - current['start_time'] >= duration):
+                if not current or (now - current['start_time'] >= duration + 2): # +2s buffer
+                    
+                    # Update 'last_played_at'
+                    if current:
+                         lib_item = next((m for m in state['library'] if m['id'] == current['id']), None)
+                         if lib_item:
+                             lib_item['last_played_at'] = now
+                             save_data()
+
                     # Pick next song
                     next_media = None
 
@@ -105,11 +138,17 @@ def radio_loop():
                              next_media = media
                              print(f"Playing QUEUED: {media['title']}")
 
-                    # 3. Shuffle
+                    # 3. Shuffle (Exclude Temporary)
                     if not next_media and state['library']:
-                         music_only = [m for m in state['library'] if m['category'] == 'Music']
-                         candidates = music_only if music_only else state['library']
+                         candidates = [
+                             m for m in state['library'] 
+                             if m.get('category') != 'Temporary'
+                         ]
                          
+                         # Fallback if library only has temporary
+                         if not candidates and state['library']:
+                             candidates = state['library']
+
                          if candidates:
                              next_media = random.choice(candidates)
                              print(f"Playing SHUFFLE: {next_media['title']}")
@@ -125,10 +164,10 @@ def radio_loop():
                         state['current_track'] = None
                         state['playing'] = False
 
-            except Exception as e:
-                print(f"RADIO LOOP ERROR: {e}")
-                # Prevent rapid failure loops
-                time.sleep(1)
+        except Exception as e:
+            print(f"CRITICAL RADIO LOOP ERROR: {e}")
+            # Prevent rapid CPU spike on error loop
+            time.sleep(5)
             
         time.sleep(1)
 
@@ -211,6 +250,47 @@ def upload_file():
         return jsonify(uploaded_items)
     
     return jsonify({'error': 'No valid files allowed'}), 400
+
+@app.route('/api/upload/youtube', methods=['POST'])
+def upload_youtube():
+    data = request.json
+    url = data.get('url')
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s'),
+            'postprocessors': [], 
+            'restrictfilenames': True,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            basename = os.path.basename(filename)
+            duration = info.get('duration', 0)
+            
+            media_item = {
+                "id": str(int(time.time()*1000)),
+                "title": info.get('title', basename),
+                "filename": basename,
+                "duration": duration,
+                "category": "Temporary",
+                "type": "audio",
+                "added_at": time.time()
+            }
+            
+            with state_lock:
+                state['library'].append(media_item)
+                save_data()
+            
+            return jsonify(media_item)
+            
+    except Exception as e:
+        print(f"DL Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/queue/add', methods=['POST'])
 def add_to_queue():

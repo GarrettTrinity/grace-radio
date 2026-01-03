@@ -304,3 +304,43 @@ async function fetchSchedule() {
 // --- Init ---
 setInterval(updateStatus, 1000);
 updateStatus();
+
+// --- YouTube ---
+function openYoutubeModal() {
+    document.getElementById('youtube-modal').style.display = 'block';
+}
+function closeYoutubeModal() {
+    document.getElementById('youtube-modal').style.display = 'none';
+}
+
+const ytForm = document.getElementById('youtube-form');
+if (ytForm) {
+    ytForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('yt-url').value;
+        const btn = e.target.querySelector('button');
+        btn.innerText = "Importing (This may take a moment)...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/upload/youtube', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            if (res.ok) {
+                closeYoutubeModal();
+                fetchLibrary();
+                alert("Imported successfully! It is in 'Temporary' category.");
+            } else {
+                const d = await res.json();
+                alert("Import failed: " + (d.error || 'Unknown'));
+            }
+        } catch (err) {
+            alert("Error: " + err);
+        }
+        btn.innerText = "Import Audio";
+        btn.disabled = false;
+        e.target.reset();
+    };
+}
