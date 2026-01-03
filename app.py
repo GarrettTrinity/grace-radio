@@ -66,18 +66,78 @@ def get_media_duration(filepath):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- Scheduler / Radio Logic ---
+# --- Singleton Management ---
+LOCK_FILE = os.path.join(tempfile.gettempdir(), 'radio_heartbeat.lock')
+
+def acquire_lock():
+    try:
+        # Check if lock exists and is valid (fresh < 10s)
+        if os.path.exists(LOCK_FILE):
+             mtime = os.path.getmtime(LOCK_FILE)
+             if time.time() - mtime < 10:
+                 return False # Active lock exists
+        
+        # Take lock
+        with open(LOCK_FILE, 'w') as f:
+            f.write(str(os.getpid()))
+        return True
+    except:
+        return False
+
+def update_heartbeat():
+    try:
+        # Touch file
+        os.utime(LOCK_FILE, None)
+    except: pass
+
+# --- Thread Management ---
+radio_thread = None
+
 def radio_loop():
-    print("--- Radio Loop Started ---")
+    print(f"--- Radio Loop Started (PID: {os.getpid()}) ---")
     
     # Simple file logger function
     def log_loop(msg):
         try:
             with open("loop_debug.log", "a") as f:
-                f.write(f"[{time.ctime()}] {msg}\n")
+                f.write(f"[{time.ctime()}][PID {os.getpid()}] {msg}\n")
         except: pass
 
+    log_loop("Loop initialized.")
+
     while True:
+        # 0. Singleton Check
+        if not acquire_lock():
+            # Another worker is active, I should back off
+            # But wait, acquire_lock updates the lock if I own it? 
+            # No, simplistic check.
+            # Let's verify if I own it first?
+            # Actually, the simplest check:
+            # If valid lock exists and it's NOT ME, sleep.
+            # If I own it, touch it.
+            
+            # Better logic inside loop:
+            try:
+                if os.path.exists(LOCK_FILE):
+                    mtime = os.path.getmtime(LOCK_FILE)
+                    if time.time() - mtime < 5:
+                        # Active. Is it me?
+                        with open(LOCK_FILE, 'r') as f:
+                            pid = f.read().strip()
+                        if pid != str(os.getpid()):
+                            # It's someone else. I sleep.
+                            time.sleep(5)
+                            continue
+            except: pass
+            
+            # If I got here, I'm taking over (or renewing)
+            try:
+                with open(LOCK_FILE, 'w') as f:
+                    f.write(str(os.getpid()))
+            except: pass
+
+        update_heartbeat()
+
         try:
             with state_lock:
                 now = time.time()
@@ -182,9 +242,6 @@ def radio_loop():
             time.sleep(5)
             
         time.sleep(1)
-
-# --- Thread Management ---
-radio_thread = None
 
 def start_radio_thread():
     global radio_thread
