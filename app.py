@@ -72,57 +72,63 @@ def radio_loop():
             now = time.time()
             current = state['current_track']
             
-            # Check if current song is finished or nothing is playing
-            # Safety checks for duration
-            duration = current['duration'] if current and current['duration'] > 0 else 10
-            
-            if not current or (now - current['start_time'] >= duration):
-                # Pick next song
-                next_media = None
-
-                # 1. Check Schedule (Expired/Due events)
-                state['schedule'].sort(key=lambda x: x['run_at'])
+            try:
+                # Check if current song is finished or nothing is playing
+                # Safety checks for duration
+                duration = current['duration'] if current and current['duration'] > 0 else 10
                 
-                due_idx = -1
-                for i, item in enumerate(state['schedule']):
-                    if item['run_at'] <= now:
-                        due_idx = i
-                        break
-                
-                if due_idx != -1:
-                    item = state['schedule'].pop(due_idx)
-                    media = next((m for m in state['library'] if m['id'] == item['media_id']), None)
-                    if media:
-                        next_media = media
-                        print(f"Playing SCHEDULED: {media['title']}")
-                
-                # 2. Check User Queue
-                if not next_media and state['queue']:
-                     media_id = state['queue'].pop(0)
-                     media = next((m for m in state['library'] if m['id'] == media_id), None)
-                     if media:
-                         next_media = media
-                         print(f"Playing QUEUED: {media['title']}")
+                if not current or (now - current['start_time'] >= duration):
+                    # Pick next song
+                    next_media = None
 
-                # 3. Shuffle
-                if not next_media and state['library']:
-                     music_only = [m for m in state['library'] if m['category'] == 'Music']
-                     candidates = music_only if music_only else state['library']
-                     
-                     if candidates:
-                         next_media = random.choice(candidates)
-                         print(f"Playing SHUFFLE: {next_media['title']}")
+                    # 1. Check Schedule (Expired/Due events)
+                    state['schedule'].sort(key=lambda x: x['run_at'])
+                    
+                    due_idx = -1
+                    for i, item in enumerate(state['schedule']):
+                        if item['run_at'] <= now:
+                            due_idx = i
+                            break
+                    
+                    if due_idx != -1:
+                        item = state['schedule'].pop(due_idx)
+                        media = next((m for m in state['library'] if m['id'] == item['media_id']), None)
+                        if media:
+                            next_media = media
+                            print(f"Playing SCHEDULED: {media['title']}")
+                    
+                    # 2. Check User Queue
+                    if not next_media and state['queue']:
+                         media_id = state['queue'].pop(0)
+                         media = next((m for m in state['library'] if m['id'] == media_id), None)
+                         if media:
+                             next_media = media
+                             print(f"Playing QUEUED: {media['title']}")
 
-                if next_media:
-                    state['current_track'] = next_media.copy()
-                    state['current_track']['start_time'] = time.time()
-                    state['playing'] = True
-                    state['history'].append(next_media['id'])
-                    if len(state['history']) > 20:
-                        state['history'].pop(0)
-                else:
-                    state['current_track'] = None
-                    state['playing'] = False
+                    # 3. Shuffle
+                    if not next_media and state['library']:
+                         music_only = [m for m in state['library'] if m['category'] == 'Music']
+                         candidates = music_only if music_only else state['library']
+                         
+                         if candidates:
+                             next_media = random.choice(candidates)
+                             print(f"Playing SHUFFLE: {next_media['title']}")
+
+                    if next_media:
+                        state['current_track'] = next_media.copy()
+                        state['current_track']['start_time'] = time.time()
+                        state['playing'] = True
+                        state['history'].append(next_media['id'])
+                        if len(state['history']) > 20:
+                            state['history'].pop(0)
+                    else:
+                        state['current_track'] = None
+                        state['playing'] = False
+
+            except Exception as e:
+                print(f"RADIO LOOP ERROR: {e}")
+                # Prevent rapid failure loops
+                time.sleep(1)
             
         time.sleep(1)
 
