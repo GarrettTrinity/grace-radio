@@ -351,6 +351,13 @@ if (ytForm) {
 }
 
 const cookieForm = document.getElementById('cookies-form');
+
+async function forceReset() {
+    if (!confirm("This will force the radio to skip and reset. Do you want to proceed?")) return;
+    await fetch('/api/danger/force_next', { method: 'POST' });
+    alert("Reset signal sent. Wait 5 seconds...");
+}
+
 if (cookieForm) {
     cookieForm.onsubmit = async (e) => {
         e.preventDefault();

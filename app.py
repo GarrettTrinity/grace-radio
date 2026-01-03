@@ -251,6 +251,24 @@ def upload_file():
     
     return jsonify({'error': 'No valid files allowed'}), 400
 
+@app.route('/api/debug')
+def debug_info():
+    with state_lock:
+        s_copy = {k:v for k,v in state.items()}
+    return jsonify({
+        "pid": os.getpid(),
+        "thread_alive": radio_thread.is_alive() if 'radio_thread' in globals() else False,
+        "state": str(s_copy)[:500] # truncate
+    })
+
+@app.route('/api/danger/force_next', methods=['POST'])
+def force_next_track():
+    with state_lock:
+        state['current_track'] = None
+        state['playing'] = False
+    # Explicitly wake loop? No need if sleep(1)
+    return jsonify({"status": "forced_reset"})
+
 import tempfile
 
 # ...
