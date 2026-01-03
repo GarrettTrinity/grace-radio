@@ -230,17 +230,33 @@ def radio_loop():
 
                     # 3. Shuffle
                     if not next_media:
-                        # Priority 1: Music
-                        cands = [m for m in state['library'] if m.get('category') == 'Music']
-                        if not cands:
-                            # Priority 2: Anything NOT Temporary
-                            cands = [m for m in state['library'] if m.get('category') != 'Temporary']
-                        if not cands:
-                            # Priority 3: Anything at all (Panic fallback)
-                            cands = state['library']
+                        # Filters
+                        music_cands = [m for m in state['library'] if m.get('category') == 'Music']
+                        other_cands = [m for m in state['library'] if m.get('category') != 'Temporary']
                         
-                        if cands:
-                             next_media = random.choice(cands)
+                        # Priority 1: Unplayed Music (not in history)
+                        history_set = set(state['history'])
+                        
+                        # Try to find Music not in history
+                        final_cands = [m for m in music_cands if m['id'] not in history_set]
+                        
+                        if not final_cands:
+                            # Priority 2: Unplayed Non-Temp (Sermons etc)
+                            final_cands = [m for m in other_cands if m['id'] not in history_set]
+                        
+                        if not final_cands:
+                            # Priority 3: Reset! All Music (Recycle)
+                            final_cands = music_cands
+                            # Optional: clear history early? 
+                            # No, just pick from full list, ensuring we don't get stuck.
+                            # We will keep history filtering for the next turn though.
+                        
+                        if not final_cands:
+                             # Panic: Anything in library
+                             final_cands = state['library']
+
+                        if final_cands:
+                             next_media = random.choice(final_cands)
                              log_loop(f"Selected SHUFFLE: {next_media['title']}")
                         else:
                              log_loop("No candidates found in library!")
@@ -249,8 +265,15 @@ def radio_loop():
                         state['current_track'] = next_media.copy()
                         state['current_track']['start_time'] = time.time()
                         state['playing'] = True
+                        
+                        # Add to history
                         state['history'].append(next_media['id'])
-                        if len(state['history']) > 20: state['history'].pop(0)
+                        
+                        # Keep history large enough to cover most of the library
+                        # e.g. 75% of library size, or max 50
+                        max_hist = max(10, len(state['library']) - 5) 
+                        if len(state['history']) > max_hist:
+                             state['history'].pop(0)
                     else:
                         state['current_track'] = None
                         state['playing'] = False

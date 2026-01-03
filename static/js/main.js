@@ -100,11 +100,14 @@ function updatePlayerUI(state, qLen) {
     // Progress
     const duration = state.duration || 1;
     const elapsed = state.elapsed || 0;
-    const pct = Math.min(100, (elapsed / duration) * 100);
-    progressBar.style.width = pct + '%';
 
-    timeCur.innerText = formatTime(elapsed);
-    timeTot.innerText = formatTime(duration);
+    // Only update UI from server if NOT playing (to avoid jitter with local audio)
+    if (!isPlaying) {
+        const pct = Math.min(100, (elapsed / duration) * 100);
+        progressBar.style.width = pct + '%';
+        timeCur.innerText = formatTime(elapsed);
+        timeTot.innerText = formatTime(duration);
+    }
 
     // Update Queue Preview
     const qList = document.getElementById('active-queue');
@@ -181,11 +184,28 @@ audio.onended = () => {
     setTimeout(updateStatus, 500); // Check server sooner
 };
 
+// Smooth UI updates from local audio
+audio.ontimeupdate = () => {
+    const dur = audio.duration;
+    const cur = audio.currentTime;
+    if (dur > 0 && isPlaying) {
+        // Update bars locally for smoothness
+        const pct = Math.min(100, (cur / dur) * 100);
+        document.getElementById('progress-bar').style.width = pct + '%';
+        document.getElementById('current-time').innerText = formatTime(cur);
+        document.getElementById('total-time').innerText = formatTime(dur);
+    }
+};
+// When playing starts/pauses, update flag
+audio.onplay = () => { isPlaying = true; };
+audio.onpause = () => { isPlaying = false; };
+
 function formatTime(sec) {
+    if (!sec || isNaN(sec)) return "0:00";
     sec = Math.floor(sec);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    let min = Math.floor(sec / 60);
+    let s = sec % 60;
+    return min + ':' + (s < 10 ? '0' : '') + s;
 }
 
 // --- Library ---
