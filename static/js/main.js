@@ -386,8 +386,13 @@ if (ytForm) {
             });
             if (res.ok) {
                 closeYoutubeModal();
-                fetchLibrary();
-                alert("Imported successfully! It is in 'Temporary' category.");
+                const d = await res.json();
+                if (res.status === 202) {
+                    alert(d.message || "Download started in background.");
+                } else {
+                    alert("Imported successfully!");
+                    fetchLibrary();
+                }
             } else {
                 const text = await res.text();
                 try {

@@ -611,6 +611,10 @@ def upload_youtube():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
+def run_youtube_download(url):
+    """Background task to handle the heavy download"""
+    print(f"BACKGROUND: Starting download for {url}")
+    try:
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s'),
@@ -631,13 +635,15 @@ def upload_youtube():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-            basename = os.path.basename(filename)
+            # Fix extension shuffle (webm -> mp3)
+            final_filename = os.path.splitext(os.path.basename(filename))[0] + ".mp3"
+            
             duration = info.get('duration', 0)
             
             media_item = {
                 "id": str(int(time.time()*1000)),
-                "title": info.get('title', basename),
-                "filename": basename,
+                "title": info.get('title', "Unknown Title"),
+                "filename": final_filename, # Ensure we point to the MP3
                 "duration": duration,
                 "category": "Temporary",
                 "type": "audio",
@@ -647,14 +653,29 @@ def upload_youtube():
             with state_lock:
                 state['library'].append(media_item)
                 save_data()
-            
-            
-            return jsonify(media_item)
-            
+                print(f"BACKGROUND: Success! Added {media_item['title']}")
+
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"DL Error: {e}")
+        print(f"BACKGROUND ERROR: {e}")
+
+@app.route('/api/upload/youtube', methods=['POST'])
+def upload_youtube():
+    try:
+        data = request.json
+        url = data.get('url')
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
+            
+        # Start in background
+        thread = threading.Thread(target=run_youtube_download, args=(url,), daemon=True)
+        thread.start()
+        
+        return jsonify({"status": "accepted", "message": "Download started in background. Please wait 1-2 minutes for it to appear in the library."}), 202
+            
+    except Exception as e:
+        print(f"DL Launch Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/queue/add', methods=['POST'])
