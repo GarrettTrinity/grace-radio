@@ -654,9 +654,12 @@ def upload_youtube():
                 state['library'].append(media_item)
                 save_data()
             
+            
             return jsonify(media_item)
             
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"DL Error: {e}")
         return jsonify({"error": str(e)}), 500
 
