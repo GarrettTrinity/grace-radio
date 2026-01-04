@@ -214,10 +214,12 @@ def radio_loop():
     def log_loop(msg):
         try:
             with open("loop_debug.log", "a") as f:
-                f.write(f"[{time.ctime()}][PID {os.getpid()}] {msg}\n")
+                f.write(f"{time.ctime()}: {msg}\n")
         except: pass
 
     log_loop("Loop initialized.")
+    with state_lock:
+        log_loop(f"Library size: {len(state.get('library', []))}")
 
     while True:
         # 0. Singleton Check
