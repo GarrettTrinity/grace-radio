@@ -414,6 +414,15 @@ async function forceReset() {
     alert("Reset signal sent. Wait 5 seconds...");
 }
 
+async function skipTrack() {
+    // if (!confirm("Skip current track?")) return; // Optional confirmation
+    try {
+        await fetch('/api/skip', { method: 'POST' });
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 if (cookieForm) {
     cookieForm.onsubmit = async (e) => {
         e.preventDefault();
