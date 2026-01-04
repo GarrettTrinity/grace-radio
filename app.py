@@ -603,14 +603,7 @@ def upload_cookies():
         print(f"Cookie Upload Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/upload/youtube', methods=['POST'])
-def upload_youtube():
-    data = request.json
-    url = data.get('url')
-    if not url:
-        return jsonify({"error": "No URL provided"}), 400
 
-    try:
 def run_youtube_download(url):
     """Background task to handle the heavy download"""
     print(f"BACKGROUND: Starting download for {url}")
