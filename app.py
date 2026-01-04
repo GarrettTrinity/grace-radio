@@ -624,7 +624,11 @@ def upload_youtube():
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(app.config['UPLOAD_FOLDER'], '%(title)s.%(ext)s'),
-            'postprocessors': [], 
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }], 
             'restrictfilenames': True,
             'nocheckcertificate': True,
         }
