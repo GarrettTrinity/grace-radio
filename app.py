@@ -733,6 +733,21 @@ def skip_track():
     return jsonify({"status": "skipped"})
 
 
+@app.route('/static/media/<path:filename>')
+def custom_static(filename):
+    # 1. Check Permanent Disk (Uploads)
+    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(upload_path):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
+    # 2. Check Local Static Folder (Built-in)
+    local_path = os.path.join(app.root_path, 'static', 'media')
+    if os.path.exists(os.path.join(local_path, filename)):
+        return send_from_directory(local_path, filename)
+        
+    print(f"404: Could not find {filename} in {app.config['UPLOAD_FOLDER']} or {local_path}")
+    return "File not found", 404
+
 if __name__ == '__main__':
     # Local development
     port = int(os.environ.get('PORT', 5000))
