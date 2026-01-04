@@ -94,11 +94,15 @@ def load_data():
                 state['library'] = data.get('library', [])
                 state['schedule'] = data.get('schedule', [])
                 loaded_from_disk = True
-                print(f"LOADED {len(state['library'])} items from {DATA_FILE}")
+                
+                # Metadata Debug
+                stat = os.stat(DATA_FILE)
+                mtime = time.ctime(stat.st_mtime)
+                print(f"LOADED {len(state['library'])} items from {DATA_FILE} (Last Mod: {mtime})")
         except Exception as e:
-            print(f"ERROR LOADING DATA_FILE: {e}")
+            print(f"ERROR LOADING DATA_FILE {DATA_FILE}: {e}")
             
-    # BOOTSTRAP: If library is empty (New Install OR Corrupt DB)
+    # BOOTSTRAP logic...
     # We want to ensure we at least have the bundled music.
     # But checking 'not state["library"]' acts as the trigger.
     
@@ -156,6 +160,9 @@ def save_data():
                 "library": state['library'],
                 "schedule": state['schedule']
             }, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno()) # FORCE WRITE TO DISK
+            
         print(f"saved data to {DATA_FILE}: {len(state['library'])} items")
     except Exception as e:
         print(f"Error saving data: {e}")
