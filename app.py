@@ -470,6 +470,20 @@ def get_logs():
     except:
         return "No logs"
 
+@app.route('/api/debug/state')
+def debug_state():
+    with state_lock:
+        return jsonify({
+            "playing": state.get('playing'),
+            "current_track": state.get('current_track'),
+            "queue_len": len(state.get('queue', [])),
+            "library_len": len(state.get('library', [])),
+            "history_len": len(state.get('history', [])),
+            "library_sample": [m['title'] for m in state.get('library', [])[:5]],
+            "queue_dump": state.get('queue'),
+            "thread_alive": radio_thread.is_alive() if radio_thread else False
+        })
+
 # --- Routes ---
 
 @app.route('/')
