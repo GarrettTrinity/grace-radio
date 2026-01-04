@@ -484,6 +484,16 @@ def debug_state():
             "thread_alive": radio_thread.is_alive() if radio_thread else False
         })
 
+@app.route('/api/debug/logs')
+def debug_logs():
+    try:
+        if os.path.exists("loop_debug.log"):
+            with open("loop_debug.log", "r") as f:
+                return "<pre>" + f.read() + "</pre>"
+        return "No logs"
+    except Exception as e:
+        return str(e)
+
 # --- Routes ---
 
 @app.route('/')
