@@ -484,17 +484,7 @@ def admin_dashboard():
 def get_status():
     # Force reload of state to ensure we see what the background worker is doing
     with state_lock:
-        try:
-            if os.path.exists(STATE_FILE):
-                with open(STATE_FILE, 'r') as f:
-                    s_data = json.load(f)
-                    # We only update playback info, not library (expensive)
-                    state['current_track'] = s_data.get('current_track')
-                    state['playing'] = s_data.get('playing')
-                    # Also sync queue so UI is accurate
-                    if 'queue' in s_data:
-                        state['queue'] = s_data['queue']
-        except: pass
+
 
         now = time.time()
         current = state['current_track']
