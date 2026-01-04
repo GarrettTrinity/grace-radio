@@ -255,6 +255,27 @@ def radio_loop():
         try:
             with state_lock:
                 now = time.time()
+                
+                # --- HOT RELOAD: Check for disk updates ---
+                try:
+                    if os.path.exists(DATA_FILE):
+                        stat = os.stat(DATA_FILE)
+                        if stat.st_mtime > state.get('last_disk_read', 0):
+                            print(f"DISK CHANGE DETECTED. Reloading library... (Old: {len(state['library'])})")
+                            with open(DATA_FILE, 'r') as f:
+                                data = json.load(f)
+                                # Only update if valid
+                                if 'library' in data:
+                                    state['library'] = data.get('library', [])
+                                    state['schedule'] = data.get('schedule', [])
+                                    state['last_disk_read'] = stat.st_mtime
+                                    print(f"RELOAD COMPLETE. New size: {len(state['library'])}")
+                                    # Fix Queue Type Mismatches immediately after reload
+                                    state['queue'] = [str(x) for x in state['queue']]
+                except Exception as e:
+                    print(f"HOT RELOAD FAILED: {e}")
+                # ------------------------------------------
+
                 current = state['current_track']
                 
                 # --- Cleanup ---
@@ -367,6 +388,7 @@ def radio_loop():
                         
                         # Priority 1: Unplayed Music (not in history)
                         history_set = set(state['history'])
+
                         
                         # Try to find Music not in history
                         final_cands = [m for m in music_cands if m['id'] not in history_set]
