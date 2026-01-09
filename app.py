@@ -533,7 +533,9 @@ def get_status():
 @app.route('/api/library', methods=['GET', 'POST'])
 def library():
     if request.method == 'GET':
-        return jsonify(state['library'])
+        with state_lock:
+            # Return a copy to be safe, or just serialize inside lock
+            return jsonify(state['library'])
     
     # POST - Add items is handled by upload mostly, but maybe editing metadata?
     return jsonify({"error": "Use upload"}), 400
