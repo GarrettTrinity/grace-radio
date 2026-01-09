@@ -263,37 +263,14 @@ def radio_loop():
              log_loop("I am a GHOST thread (replaced). Exiting.")
              break
 
-        # 0. Singleton Check
-        if not acquire_lock():
-            # Another worker is active, I should back off
-            # But wait, acquire_lock updates the lock if I own it? 
-            # No, simplistic check.
-            # Let's verify if I own it first?
-            # Actually, the simplest check:
-            # If valid lock exists and it's NOT ME, sleep.
-            # If I own it, touch it.
-            
-            # Better logic inside loop:
-            try:
-                if os.path.exists(LOCK_FILE):
-                    mtime = os.path.getmtime(LOCK_FILE)
-                    if time.time() - mtime < 5:
-                        # Active. Is it me?
-                        with open(LOCK_FILE, 'r') as f:
-                            pid = f.read().strip()
-                        if pid != str(os.getpid()):
-                            # It's someone else. I sleep.
-                            time.sleep(5)
-                            continue
-            except: pass
-            
-            # If I got here, I'm taking over (or renewing)
-            try:
-                with open(LOCK_FILE, 'w') as f:
-                    f.write(str(os.getpid()))
-            except: pass
-
-        update_heartbeat()
+        # 0. Singleton Check - REMOVED (Conflicting with single worker)
+        # We rely on Ghost Thread Check above.
+        
+        try:
+             # Just touch heartbeat if we want external monitoring? 
+             # Not needed for logic.
+             pass
+        except: pass
 
         try:
             with state_lock:
@@ -349,10 +326,18 @@ def radio_loop():
                     if not isinstance(dur, (int, float)) or dur <= 0: dur = 10
                     
                     elapsed = now - current['start_time']
+                    
+                    # Normal Finish
                     if elapsed >= dur + 1: # 1s buffer
                         should_pick = True
                         log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {dur}s)")
-                        
+                    
+                    # Overdue Failsafe (Safety Net)
+                    elif elapsed > (dur + 10):
+                        should_pick = True
+                        log_loop(f"Picking: Track OVERDUE Force Skip ({elapsed:.1f}s / {dur}s)")
+
+                    if should_pick:
                         # Update Last Played
                         lib_item = next((m for m in state['library'] if m['id'] == current['id']), None)
                         if lib_item:
