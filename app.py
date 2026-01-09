@@ -866,6 +866,7 @@ def update_library_item():
         if item:
             if 'title' in data: item['title'] = data['title']
             if 'category' in data: item['category'] = data['category']
+            if 'eq' in data: item['eq'] = data['eq'] # Store EQ settings {low, mid, high}
             
             # Folder Support
             new_folder = data.get('folder') # e.g. "Newsboys" or "" (root)

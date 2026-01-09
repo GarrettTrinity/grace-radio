@@ -66,19 +66,51 @@
                     </div>
                 </div>
 
-                <!-- Hidden Audio Element -->
-                <audio id="radio-audio" preload="auto"></audio>
+                <!-- Hidden Audio Elements -->
+                <audio id="radio-audio" crossorigin="anonymous" preload="auto"></audio>
+                <audio id="radio-audio-2" crossorigin="anonymous" preload="auto"></audio>
 
                 <div class="controls">
-                    <!-- Client side mute/volume logic mainly, since it's "Live" we can't pause really, just mute -->
+                    <!-- ... -->
                     <button class="control-btn" id="mute-btn" onclick="toggleMute()">Mute</button>
                     <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1"
                         onchange="setVolume(this.value)">
                     <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
                     {% if is_admin %}
+                    <button class="control-btn" onclick="openEQModal()">EQ</button>
                     <button class="control-btn" onclick="skipTrack()">Skip</button>
                     <button class="control-btn" onclick="openYoutubeModal()">YT Import</button>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- ... -->
+            <!-- MODAL: EQ -->
+            <div id="eq-modal" class="modal">
+                <div class="modal-content" style="max-width:400px;">
+                    <span class="close" onclick="closeEQModal()">&times;</span>
+                    <h2>Track Equalizer</h2>
+                    <div style="display:flex; justify-content:space-around; text-align:center; padding:20px;">
+                        <div>
+                            <label>Low</label><br>
+                            <input type="range" id="eq-low" min="-10" max="10" step="1" value="0" orient="vertical"
+                                style="appearance: slider-vertical; height:150px;">
+                            <br><span id="val-low">0</span>dB
+                        </div>
+                        <div>
+                            <label>Mid</label><br>
+                            <input type="range" id="eq-mid" min="-10" max="10" step="1" value="0" orient="vertical"
+                                style="appearance: slider-vertical; height:150px;">
+                            <br><span id="val-mid">0</span>dB
+                        </div>
+                        <div>
+                            <label>High</label><br>
+                            <input type="range" id="eq-high" min="-10" max="10" step="1" value="0" orient="vertical"
+                                style="appearance: slider-vertical; height:150px;">
+                            <br><span id="val-high">0</span>dB
+                        </div>
+                    </div>
+                    <button onclick="saveEQ()" class="btn-primary" style="width:100%">Save to Track</button>
                 </div>
             </div>
 

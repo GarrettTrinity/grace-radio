@@ -26,24 +26,80 @@ function switchTab(tabId) {
 }
 
 // --- Player Logic ---
-const audio = document.getElementById('radio-audio');
+// --- Player Logic (Web Audio API) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let decks = [];
+let audioInitialized = false;
+let activeDeckIndex = 0; // 0 or 1
+
+function initAudio() {
+    if (audioInitialized) return;
+    try {
+        decks = [setupDeck('radio-audio'), setupDeck('radio-audio-2')];
+        audioCtx.resume();
+        audioInitialized = true;
+    } catch (e) { console.error("Audio Init Error (Refresh page if stuck):", e); }
+}
+
+function setupDeck(id) {
+    const el = document.getElementById(id);
+    const source = audioCtx.createMediaElementSource(el);
+
+    // EQ Chain
+    const low = audioCtx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 320;
+    const mid = audioCtx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1000; mid.Q.value = 0.5;
+    const high = audioCtx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 3200;
+
+    const gain = audioCtx.createGain();
+
+    source.connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
+
+    // Event Listeners
+    el.onplay = () => { isPlaying = true; };
+    el.onpause = () => {
+        if (decks[activeDeckIndex] && decks[activeDeckIndex].el === el) isPlaying = false;
+    };
+    el.onerror = (e) => console.error("Deck Error", e);
+
+    el.ontimeupdate = () => {
+        if (!decks.length) return;
+        if (decks[activeDeckIndex].el !== el) return; // Only update UI for active deck
+
+        const dur = el.duration;
+        const cur = el.currentTime;
+        if (dur && !isNaN(dur) && dur > 0) {
+            const pct = (cur / dur) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = pct + '%';
+            const c = document.getElementById('time-cur');
+            if (c) c.innerText = formatTime(cur);
+            const t = document.getElementById('time-tot');
+            if (t) t.innerText = formatTime(dur);
+        }
+    };
+
+    return { el, source, low, mid, high, gain, currentId: null };
+}
 
 function syncStream() {
     userInteracted = true;
-    audio.play().catch(e => console.log("Autoplay prevented:", e));
+    initAudio();
     document.getElementById('sync-btn').style.display = 'none';
-    updateStatus(); // Immediate check
+    updateStatus();
 }
 
 function toggleMute() {
-    audio.muted = !audio.muted;
+    if (!decks.length) initAudio();
+    const muted = !decks[0].el.muted;
+    decks.forEach(d => d.el.muted = muted);
+
     const btn = document.getElementById('mute-btn');
-    btn.innerText = audio.muted ? 'Unmute' : 'Mute';
-    btn.className = audio.muted ? 'control-btn' : 'control-btn primary';
+    btn.innerText = muted ? 'Unmute' : 'Mute';
+    btn.className = muted ? 'control-btn' : 'control-btn primary';
 }
 
 function setVolume(val) {
-    audio.volume = val;
+    if (decks.length) decks.forEach(d => d.el.volume = val);
 }
 
 async function updateStatus() {
@@ -149,66 +205,137 @@ async function removeFromQueue(id) {
 }
 
 function handleAudioSync(state) {
-    if (!userInteracted) return;
+    if (!userInteracted || !decks.length) return;
 
-    const url = `/static/media/${state.filename}`;
-    const serverElapsed = state.elapsed;
-
-    // Check if new track, OR if track ended and restarted (loop issue)
+    // Check for Track Change
     if (currentMediaId !== state.id) {
-        console.log("New Track Detected:", state.title);
+        console.log("Crossfade Switch:", state.title);
         currentMediaId = state.id;
 
-        // Mobile Fix: Append timestamp to force browser to re-fetch audio
-        let safeUrl = url;
-        if (safeUrl.indexOf('?') === -1) safeUrl += '?t=' + Date.now();
-        else safeUrl += '&t=' + Date.now();
+        const prevDeck = decks[activeDeckIndex];
+        activeDeckIndex = (activeDeckIndex + 1) % 2;
+        const nextDeck = decks[activeDeckIndex];
 
-        audio.src = safeUrl;
-        audio.load();
+        // Prepare URL
+        let url = `/static/media/${state.filename.replace(/\\/g, '/')}`;
+        if (url.indexOf('?') === -1) url += '?t=' + Date.now();
 
-        const playPromise = () => {
-            audio.currentTime = serverElapsed;
-            const p = audio.play();
-            if (p) p.catch(e => {
-                console.log("Autoplay blocked/failed", e);
-            });
-        };
+        nextDeck.el.src = url;
+        nextDeck.el.load();
 
-        // Listen for metadata before seeking
-        // If already ready, run immediately
-        if (audio.readyState >= 1) {
-            playPromise();
-        } else {
-            audio.onloadedmetadata = playPromise;
+        // Apply EQ
+        const eq = state.eq || { low: 0, mid: 0, high: 0 };
+        const safeVal = (v) => Math.max(-10, Math.min(10, v || 0));
+        nextDeck.low.gain.value = safeVal(eq.low);
+        nextDeck.mid.gain.value = safeVal(eq.mid);
+        nextDeck.high.gain.value = safeVal(eq.high);
+
+        // Setup Playback
+        // Trust server elapsed mostly, but if track is fresh start at 0
+        nextDeck.el.currentTime = state.elapsed;
+
+        // CROSSFADE LOGIC
+        const now = audioCtx.currentTime;
+        const fadeDur = 3; // 3 seconds
+
+        // Fade OUT Previous (if playing)
+        if (!prevDeck.el.paused) {
+            prevDeck.gain.gain.cancelScheduledValues(now);
+            prevDeck.gain.gain.setValueAtTime(1, now);
+            prevDeck.gain.gain.linearRampToValueAtTime(0, now + fadeDur);
+
+            setTimeout(() => {
+                prevDeck.el.pause();
+                prevDeck.el.src = ""; // Clear buffer
+                prevDeck.gain.gain.value = 1; // Reset for next use
+            }, fadeDur * 1000 + 100);
         }
+
+        // Fade IN Next
+        nextDeck.gain.gain.cancelScheduledValues(now);
+        nextDeck.gain.gain.setValueAtTime(0, now);
+        nextDeck.gain.gain.linearRampToValueAtTime(1, now + fadeDur);
+
+        nextDeck.el.play().catch(e => console.error("Play failed", e));
 
     } else {
-        // Same track, check sync
-        // If drift > 3 seconds, snap (Relaxed for mobile)
-        if (Math.abs(audio.currentTime - serverElapsed) > 3.0) {
-            console.log("Sync drifting, snapping...", audio.currentTime, serverElapsed);
-            audio.currentTime = serverElapsed;
-        }
-
-        // If server says elapsed is small (just started) but we are at end, Force Reset
-        if (serverElapsed < 5 && audio.currentTime > (state.duration - 5)) {
-            console.log("Local finished but Server restarted? Resetting.");
-            audio.currentTime = serverElapsed;
-        }
-
-        if (audio.paused && userInteracted) {
-            const p = audio.play();
-            if (p) p.catch(e => { });
+        // Drifting check?
+        // simple: if diff > 5s, jump.
+        const deck = decks[activeDeckIndex];
+        if (deck && !deck.el.paused && Math.abs(deck.el.currentTime - state.elapsed) > 8) {
+            console.log("Resyncing time...");
+            deck.el.currentTime = state.elapsed;
         }
     }
 }
 
-// Add 'ended' listener to bridge gap
-audio.onended = () => {
-    console.log("Track ended locally. Waiting for server...");
-    setTimeout(updateStatus, 500); // Check server sooner
-};
+
+// --- EQ UI Handlers ---
+function openEQModal() {
+    if (!activeDeckIndex && activeDeckIndex !== 0) {
+        // Could happen if no audio yet
+        initAudio();
+    }
+    const deck = decks[activeDeckIndex] || decks[0];
+    if (!deck) return; // Should not happen
+
+    // Get current vals
+    document.getElementById('eq-low').value = deck.low.gain.value;
+    document.getElementById('eq-mid').value = deck.mid.gain.value;
+    document.getElementById('eq-high').value = deck.high.gain.value;
+
+    updateEQLabels();
+
+    document.getElementById('eq-modal').style.display = 'block';
+}
+
+function closeEQModal() { document.getElementById('eq-modal').style.display = 'none'; }
+
+// Live Update Labels
+document.getElementById('eq-low').oninput = updateEQLabels;
+document.getElementById('eq-mid').oninput = updateEQLabels;
+document.getElementById('eq-high').oninput = updateEQLabels;
+
+function updateEQLabels() {
+    const low = document.getElementById('eq-low').value;
+    const mid = document.getElementById('eq-mid').value;
+    const high = document.getElementById('eq-high').value;
+    document.getElementById('val-low').innerText = low;
+    document.getElementById('val-mid').innerText = mid;
+    document.getElementById('val-high').innerText = high;
+
+    // Live Review: Apply to Active Deck
+    if (decks.length) {
+        const deck = decks[activeDeckIndex];
+        deck.low.gain.value = low;
+        deck.mid.gain.value = mid;
+        deck.high.gain.value = high;
+    }
+}
+
+async function saveEQ() {
+    if (!currentMediaId) return;
+    const low = document.getElementById('eq-low').value;
+    const mid = document.getElementById('eq-mid').value;
+    const high = document.getElementById('eq-high').value;
+
+    const settings = { low: parseFloat(low), mid: parseFloat(mid), high: parseFloat(high) };
+
+    try {
+        const res = await fetch('/api/library/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: currentMediaId,
+                eq: settings
+            })
+        });
+        if (res.ok) {
+            alert("EQ Saved for this track!");
+            closeEQModal();
+        } else alert("Failed to save EQ");
+    } catch (e) { console.error(e); }
+}
 
 // Handle Loading Errors (e.g. 404, Format)
 audio.onerror = (e) => {
