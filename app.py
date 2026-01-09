@@ -704,9 +704,9 @@ def upload_cookies():
         return jsonify({"error": str(e)}), 500
 
 
-def run_youtube_download(url):
+def run_youtube_download(url, category='Music'):
     """Background task to handle the heavy download"""
-    print(f"BACKGROUND: Starting download for {url}")
+    print(f"BACKGROUND: Starting download for {url} (Category: {category})")
     try:
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -738,7 +738,7 @@ def run_youtube_download(url):
                 "title": info.get('title', "Unknown Title"),
                 "filename": final_filename, # Ensure we point to the MP3
                 "duration": duration,
-                "category": "Temporary",
+                "category": category,
                 "type": "audio",
                 "added_at": time.time()
             }
@@ -753,20 +753,82 @@ def run_youtube_download(url):
         traceback.print_exc()
         print(f"BACKGROUND ERROR: {e}")
 
+# --- Helpers ---
+def ensure_queue_filled():
+    """Auto-fills queue with random music to maintain 10 items"""
+    # Strict Shuffle: Only Music
+    music_cands = [m for m in state['library'] if m.get('category') == 'Music']
+    if not music_cands: return # No music to pick from
+    
+    # Avoid recent repeats (History)
+    history_set = set(state['history'])
+    
+    changes = False
+    attempts = 0
+    while len(state['queue']) < 10 and attempts < 20:
+        attempts += 1
+        # Filter candidates
+        cands = [m for m in music_cands if m['id'] not in history_set and str(m['id']) not in state['queue']]
+        
+        if not cands:
+             # Relax history if strictly needed, or just pick any music
+             cands = music_cands
+        
+        if cands:
+            pick = random.choice(cands)
+            state['queue'].append(pick['id'])
+            changes = True
+    
+    if changes:
+        save_state()
+
+@app.route('/api/library/update', methods=['POST'])
+def update_library_item():
+    data = request.json
+    mid = data.get('id')
+    with state_lock:
+        item = next((m for m in state['library'] if str(m['id']) == str(mid)), None)
+        if item:
+            if 'title' in data: item['title'] = data['title']
+            if 'category' in data: item['category'] = data['category']
+            save_data()
+            return jsonify({"status": "updated", "item": item})
+    return jsonify({"error": "not found"}), 404
+
+@app.route('/api/queue/reorder', methods=['POST'])
+def reorder_queue():
+    """Expects [id1, id2, id3...] representing new order"""
+    new_order = request.json.get('order', [])
+    with state_lock:
+        valid_ids = []
+        for qid in new_order:
+             if any(str(m['id']) == str(qid) for m in state['library']):
+                 valid_ids.append(str(qid))
+        state['queue'] = valid_ids
+        ensure_queue_filled()
+        save_state()
+    return jsonify({"status": "ok", "queue": state['queue']})
+
+@app.route('/api/queue/remove', methods=['POST'])
+def remove_from_queue():
+    target_id = request.json.get('id')
+    with state_lock:
+        state['queue'] = [q for q in state['queue'] if str(q) != str(target_id)]
+        ensure_queue_filled()
+        save_state()
+    return jsonify({"status": "removed"})
+    
 @app.route('/api/upload/youtube', methods=['POST'])
 def upload_youtube():
     try:
         data = request.json
         url = data.get('url')
+        category = data.get('category', 'Music') 
         if not url:
             return jsonify({"error": "No URL provided"}), 400
-            
-        # Start in background
-        thread = threading.Thread(target=run_youtube_download, args=(url,), daemon=True)
+        thread = threading.Thread(target=run_youtube_download, args=(url, category), daemon=True)
         thread.start()
-        
-        return jsonify({"status": "accepted", "message": "Download started in background. Please wait 1-2 minutes for it to appear in the library."}), 202
-            
+        return jsonify({"status": "accepted", "message": "Download started in background."}), 202
     except Exception as e:
         print(f"DL Launch Error: {e}")
         return jsonify({"error": str(e)}), 500
@@ -779,8 +841,13 @@ def add_to_queue():
         # verify exists
         # Fix: Ensure strict string comparison here too, in case library has int but we received str
         if any(str(m['id']) == str(media_id) for m in state['library']):
-            state['queue'].append(str(media_id)) # Store as string
-            save_state() # SYNC: Write to disk so Radio Loop sees it
+            # Priority: Insert at 0 so it plays NEXT
+            # Duplicate check handled?
+            # User might want to queue same song multiple times?
+            # If we auto-fill, duplicates are disallowed.
+            # Manual queues allow duplicates? Let's allow.
+            state['queue'].insert(0, str(media_id))
+            save_state() 
             return jsonify({"status": "added"})
     return jsonify({"error": "not found"}), 404
 
