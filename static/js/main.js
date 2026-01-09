@@ -388,6 +388,7 @@ function renderLibrary(data) {
     itemsInView.forEach(item => {
         const card = document.createElement('div');
         card.className = 'media-card';
+        card.style.position = 'relative'; // Ensure absolute checkbox works
         const isSelected = selectedItems.has(item.id);
         if (isSelected) card.style.border = '1px solid #eda';
 
@@ -406,7 +407,7 @@ function renderLibrary(data) {
 
         card.innerHTML = `
             ${(typeof IS_ADMIN !== 'undefined' && IS_ADMIN) ?
-                `<input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelection('${item.id}')" style="position:absolute; top:10px; left:10px; transform:scale(1.5);">` : ''}
+                `<input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelection('${item.id}')" style="position:absolute; top:10px; left:10px; transform:scale(1.5); z-index:10; cursor:pointer;">` : ''}
             <h4 style="margin-top:20px;">${item.title}</h4>
             <p>${item.category} • ${formatTime(item.duration)}</p>
             <div class="card-actions">
