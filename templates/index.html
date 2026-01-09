@@ -171,6 +171,16 @@
                     <label>Video URL</label>
                     <input type="text" id="yt-url" required placeholder="https://youtube.com/watch?v=...">
                 </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="yt-category" class="form-control"
+                        style="width:100%; padding:10px; margin-top:5px; background:#222; color:white; border:1px solid #444; border-radius:5px;">
+                        <option value="Music" selected>Music</option>
+                        <option value="Sermon">Sermon</option>
+                        <option value="Announcement">Announcement</option>
+                        <option value="Temporary">Temporary</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn-primary">Import Audio</button>
             </form>
             <hr style="margin:20px 0; border:0; border-top:1px solid #333;">
@@ -184,6 +194,33 @@
             <p style="font-size:0.8rem; color:#ff4444;">Troubleshooting</p>
             <button class="btn-card" style="border:1px solid red; color:red;" onclick="forceReset()">Force Next Track
                 (Repair)</button>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Track</h2>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="edit-title" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="edit-category" class="form-control"
+                        style="width:100%; padding:10px; margin-top:5px; background:#222; color:white; border:1px solid #444; border-radius:5px;">
+                        <option value="Music">Music</option>
+                        <option value="Sermon">Sermon</option>
+                        <option value="Announcement">Announcement</option>
+                        <option value="Temporary">Temporary</option>
+                    </select>
+                </div>
+                <!-- Future: Filename/Folder edit -->
+                <button type="submit" class="btn-primary">Save Changes</button>
+            </form>
         </div>
     </div>
     {% endif %}

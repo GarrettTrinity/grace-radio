@@ -257,7 +257,8 @@ function renderLibrary(data) {
         if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
             buttons = `
                 <button class="btn-card" onclick="queueItem('${item.id}')">Queue Next</button>
-                <button class="btn-card" onclick="openScheduleModal('${item.id}', '${item.title}')">Schedule</button>
+                <button class="btn-card" onclick="openScheduleModal('${item.id}', '${item.title.replace(/'/g, "&apos;")}')">Schedule</button>
+                <button class="btn-card" onclick='openEditModal(${JSON.stringify(item)})'>Edit</button>
                 <button class="btn-card" style="color:#ff4444" onclick="deleteItem('${item.id}')">Delete</button>
              `;
         } else {
@@ -392,15 +393,19 @@ if (ytForm) {
     ytForm.onsubmit = async (e) => {
         e.preventDefault();
         const url = document.getElementById('yt-url').value;
+        // Use optional chaining just in case
+        const catEl = document.getElementById('yt-category');
+        const category = catEl ? catEl.value : 'Music';
+
         const btn = e.target.querySelector('button');
-        btn.innerText = "Importing (This may take a moment)...";
+        btn.innerText = "Processing...";
         btn.disabled = true;
 
         try {
             const res = await fetch('/api/upload/youtube', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url, category })
             });
             if (res.ok) {
                 closeYoutubeModal();
@@ -426,6 +431,40 @@ if (ytForm) {
         btn.innerText = "Import Audio";
         btn.disabled = false;
         e.target.reset();
+    };
+}
+
+// --- Edit Modal Handlers ---
+function openEditModal(item) {
+    document.getElementById('edit-id').value = item.id;
+    document.getElementById('edit-title').value = item.title;
+    document.getElementById('edit-category').value = item.category || 'Music';
+    document.getElementById('edit-modal').style.display = 'block';
+}
+function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
+
+const editForm = document.getElementById('edit-form');
+if (editForm) {
+    editForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const title = document.getElementById('edit-title').value;
+        const category = document.getElementById('edit-category').value;
+
+        try {
+            const res = await fetch('/api/library/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, title, category })
+            });
+            if (res.ok) {
+                closeEditModal();
+                fetchLibrary();
+                // alert("Updated!");
+            } else {
+                alert("Update failed");
+            }
+        } catch (e) { console.error(e); }
     };
 }
 
