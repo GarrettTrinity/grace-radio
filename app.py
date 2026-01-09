@@ -222,6 +222,12 @@ def radio_loop():
         log_loop(f"Library size: {len(state.get('library', []))}")
 
     while True:
+        # Ghost Thread Check: Am I the official thread?
+        # Note: We need a small delay on startup to allow the global var to be set
+        if radio_thread and radio_thread != threading.current_thread():
+             log_loop("I am a GHOST thread (replaced). Exiting.")
+             break
+
         # 0. Singleton Check
         if not acquire_lock():
             # Another worker is active, I should back off
@@ -447,12 +453,16 @@ def radio_loop():
             
         time.sleep(1)
 
+# Thread management lock
+thread_start_lock = threading.Lock()
+
 def start_radio_thread():
     global radio_thread
-    if radio_thread is None or not radio_thread.is_alive():
-        print("Starting Radio Loop Thread...")
-        radio_thread = threading.Thread(target=radio_loop, daemon=True)
-        radio_thread.start()
+    with thread_start_lock:
+        if radio_thread is None or not radio_thread.is_alive():
+            print("Starting Radio Loop Thread...")
+            radio_thread = threading.Thread(target=radio_loop, daemon=True)
+            radio_thread.start()
 
 # Start initially
 start_radio_thread()
