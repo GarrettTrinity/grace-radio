@@ -185,13 +185,29 @@ LOCK_FILE = os.path.join(tempfile.gettempdir(), 'radio_heartbeat.lock')
 
 def acquire_lock():
     try:
-        # Check if lock exists and is valid (fresh < 10s)
+        # Check if lock exists
         if os.path.exists(LOCK_FILE):
              mtime = os.path.getmtime(LOCK_FILE)
-             if time.time() - mtime < 10:
-                 return False # Active lock exists
+             is_fresh = (time.time() - mtime < 10)
+             
+             if is_fresh:
+                 # It is fresh. Is it ME?
+                 try:
+                     with open(LOCK_FILE, 'r') as f:
+                         pid = f.read().strip()
+                     if pid == str(os.getpid()):
+                         # It is ME. I own it.
+                         # Update timestamp
+                         os.utime(LOCK_FILE, None)
+                         return True
+                     else:
+                         # It is someone else. Back off.
+                         return False
+                 except: 
+                     # Read failed? Assume active.
+                     return False
         
-        # Take lock
+        # Lock is old or missing. Take it.
         with open(LOCK_FILE, 'w') as f:
             f.write(str(os.getpid()))
         return True
@@ -199,9 +215,11 @@ def acquire_lock():
         return False
 
 def update_heartbeat():
+    # Deprecated/Redundant given acquire_lock updates it, 
+    # but kept for safety if used elsewhere
     try:
-        # Touch file
-        os.utime(LOCK_FILE, None)
+        if os.path.exists(LOCK_FILE):
+             os.utime(LOCK_FILE, None)
     except: pass
 
 # --- Thread Management ---
