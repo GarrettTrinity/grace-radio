@@ -791,6 +791,51 @@ def update_library_item():
         if item:
             if 'title' in data: item['title'] = data['title']
             if 'category' in data: item['category'] = data['category']
+            
+            # Folder Support
+            new_folder = data.get('folder') # e.g. "Newsboys" or "" (root)
+            if new_folder is not None:
+                # Sanitize folder name
+                new_folder = secure_filename(new_folder)
+                
+                # Current location
+                old_filename = item['filename']
+                src_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
+                
+                # Determine basic filename (without path)
+                base_name = os.path.basename(old_filename)
+                
+                # New Filename
+                if new_folder:
+                     new_filename = os.path.join(new_folder, base_name)
+                else:
+                     new_filename = base_name
+                
+                if new_filename != old_filename:
+                    # Move File
+                    dst_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+                    dst_dir = os.path.dirname(dst_path)
+                    
+                    try:
+                        # Create dir if not exists
+                        if dst_dir and not os.path.exists(dst_dir):
+                            os.makedirs(dst_dir)
+                            
+                        # Move
+                        if os.path.exists(src_path):
+                            os.rename(src_path, dst_path)
+                            item['filename'] = new_filename.replace('\\', '/') # Ensure URL safe
+                            print(f"MOVED: {old_filename} -> {new_filename}")
+                        else:
+                            # If file missing, just update DB path? No, risky. 
+                            print(f"MOVE FAILED: Source {src_path} not found.")
+                            # Fallback: maybe it's in local static? We can't move logical static files easily.
+                            # Only move if in UPLOAD_FOLDER
+                            pass
+                    except Exception as e:
+                        print(f"MOVE ERROR: {e}")
+                        return jsonify({"error": f"Failed to move file: {str(e)}"}), 500
+
             save_data()
             return jsonify({"status": "updated", "item": item})
     return jsonify({"error": "not found"}), 404

@@ -116,17 +116,36 @@ function updatePlayerUI(state, queueList) {
     }
 
     // Update Queue Preview
+    // Update Queue Preview
     const qList = document.getElementById('active-queue');
     if (queueList.length > 0) {
         qList.innerHTML = queueList.map((item, idx) => `
-            <div class="queue-item" style="padding:5px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-                <span>${idx + 1}. ${item.title}</span>
-                <span class="badge" style="font-size:0.7em">${item.category}</span>
+            <div class="queue-item" style="padding:8px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+                    <span style="color:#888; margin-right:5px;">${idx + 1}.</span> 
+                    ${item.title}
+                </div>
+                <div style="display:flex; align-items:center;">
+                     <span class="badge" style="font-size:0.7em; margin-right:5px;">${item.category}</span>
+                     ${(typeof IS_ADMIN !== 'undefined' && IS_ADMIN) ?
+                `<button onclick="removeFromQueue('${item.id}')" style="background:none; border:none; color:#ff4444; cursor:pointer; font-weight:bold; padding:0 5px;">✕</button>`
+                : ''}
+                </div>
             </div>
         `).join('');
     } else {
         qList.innerHTML = `<p class="empty-state">Queue is empty. Shuffling playlist.</p>`;
     }
+}
+
+async function removeFromQueue(id) {
+    if (!confirm("Remove from Up Next?")) return;
+    await fetch('/api/queue/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    });
+    updateStatus(); // Refresh immediately
 }
 
 function handleAudioSync(state) {
@@ -270,9 +289,16 @@ function renderLibrary(data) {
             // Actually, showing "Duration" is enough.
         }
 
+        // Extract folder for display
+        let folderName = '';
+        if (item.filename && item.filename.includes('/')) {
+            folderName = item.filename.substring(0, item.filename.lastIndexOf('/'));
+            folderName = `<span style="background:#334; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-right:5px;">📁 ${folderName}</span>`;
+        }
+
         card.innerHTML = `
             <h4>${item.title}</h4>
-            <p>${item.category} • ${formatTime(item.duration)}</p>
+            <p>${folderName} ${item.category} • ${formatTime(item.duration)}</p>
             <div class="card-actions">
                 ${buttons}
             </div>
@@ -439,6 +465,20 @@ function openEditModal(item) {
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-title').value = item.title;
     document.getElementById('edit-category').value = item.category || 'Music';
+
+    // Extract Folder
+    // Filename: "Folder/File.mp3" or "File.mp3"
+    // Using forward slash as standard (or backslash check)
+    let fname = item.filename || '';
+    fname = fname.replace(/\\/g, '/');
+    const parts = fname.split('/');
+    let folder = '';
+    if (parts.length > 1) {
+        folder = parts.slice(0, -1).join('/');
+    }
+    const folderInput = document.getElementById('edit-folder');
+    if (folderInput) folderInput.value = folder;
+
     document.getElementById('edit-modal').style.display = 'block';
 }
 function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
@@ -450,19 +490,21 @@ if (editForm) {
         const id = document.getElementById('edit-id').value;
         const title = document.getElementById('edit-title').value;
         const category = document.getElementById('edit-category').value;
+        const folder = document.getElementById('edit-folder').value;
 
         try {
             const res = await fetch('/api/library/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, title, category })
+                body: JSON.stringify({ id, title, category, folder })
             });
             if (res.ok) {
                 closeEditModal();
                 fetchLibrary();
                 // alert("Updated!");
             } else {
-                alert("Update failed");
+                const text = await res.json();
+                alert("Update failed: " + (text.error || 'Unknown'));
             }
         } catch (e) { console.error(e); }
     };
