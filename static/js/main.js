@@ -31,6 +31,13 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let decks = [];
 let audioInitialized = false;
 let activeDeckIndex = 0; // 0 or 1
+let crossfadeDuration = 3; // Default
+
+function updateCrossfade(val) {
+    crossfadeDuration = parseFloat(val);
+    const span = document.getElementById('cf-val');
+    if (span) span.innerText = crossfadeDuration + 's';
+}
 
 function initAudio() {
     if (audioInitialized) return;
@@ -236,7 +243,7 @@ function handleAudioSync(state) {
 
         // CROSSFADE LOGIC
         const now = audioCtx.currentTime;
-        const fadeDur = 3; // 3 seconds
+        const fadeDur = crossfadeDuration;
 
         // Fade OUT Previous (if playing)
         if (!prevDeck.el.paused) {

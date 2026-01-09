@@ -77,9 +77,18 @@
                         onchange="setVolume(this.value)">
                     <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
                     {% if is_admin %}
-                    <button class="control-btn" onclick="openEQModal()">EQ</button>
-                    <button class="control-btn" onclick="skipTrack()">Skip</button>
-                    <button class="control-btn" onclick="openYoutubeModal()">YT Import</button>
+                    <br>
+                    <div class="admin-toolbar"
+                        style="margin-top:10px; display:flex; gap:10px; align-items:center; background:#333; padding:5px; border-radius:5px;">
+                        <span style="font-size:0.8rem; color:#aaa;">Crossfade:</span>
+                        <input type="range" min="0" max="10" step="0.5" value="3" oninput="updateCrossfade(this.value)"
+                            style="width:100px;">
+                        <span id="cf-val" style="font-size:0.8rem;">3s</span>
+                        <div style="width:1px; height:20px; background:#555; margin:0 5px;"></div>
+                        <button class="control-btn" onclick="openEQModal()">EQ</button>
+                        <button class="control-btn" onclick="skipTrack()">Skip</button>
+                        <button class="control-btn" onclick="openYoutubeModal()">YT Import</button>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -90,24 +99,24 @@
                 <div class="modal-content" style="max-width:400px;">
                     <span class="close" onclick="closeEQModal()">&times;</span>
                     <h2>Track Equalizer</h2>
-                    <div style="display:flex; justify-content:space-around; text-align:center; padding:20px;">
-                        <div>
-                            <label>Low</label><br>
+                    <div style="display:flex; justify-content:space-around; padding:20px;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                            <label>Low</label>
                             <input type="range" id="eq-low" min="-10" max="10" step="1" value="0" orient="vertical"
-                                style="appearance: slider-vertical; height:150px;">
-                            <br><span id="val-low">0</span>dB
+                                style="appearance: slider-vertical; height:150px; width:20px;">
+                            <span style="font-size:0.9em;"><span id="val-low">0</span>dB</span>
                         </div>
-                        <div>
-                            <label>Mid</label><br>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                            <label>Mid</label>
                             <input type="range" id="eq-mid" min="-10" max="10" step="1" value="0" orient="vertical"
-                                style="appearance: slider-vertical; height:150px;">
-                            <br><span id="val-mid">0</span>dB
+                                style="appearance: slider-vertical; height:150px; width:20px;">
+                            <span style="font-size:0.9em;"><span id="val-mid">0</span>dB</span>
                         </div>
-                        <div>
-                            <label>High</label><br>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                            <label>High</label>
                             <input type="range" id="eq-high" min="-10" max="10" step="1" value="0" orient="vertical"
-                                style="appearance: slider-vertical; height:150px;">
-                            <br><span id="val-high">0</span>dB
+                                style="appearance: slider-vertical; height:150px; width:20px;">
+                            <span style="font-size:0.9em;"><span id="val-high">0</span>dB</span>
                         </div>
                     </div>
                     <button onclick="saveEQ()" class="btn-primary" style="width:100%">Save to Track</button>
