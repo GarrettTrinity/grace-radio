@@ -584,6 +584,49 @@ def library_folders():
                     folders.add(d)
     return jsonify(sorted(list(folders)))
 
+@app.route('/api/library/batch_move', methods=['POST'])
+def batch_move():
+    data = request.json
+    ids = data.get('ids', [])
+    target_folder = data.get('folder', '').strip()
+    target_folder = secure_filename(target_folder)
+    
+    count = 0
+    with state_lock:
+        for mid in ids:
+            item = next((m for m in state['library'] if str(m['id']) == str(mid)), None)
+            if not item: continue
+            
+            old_filename = item['filename']
+            base_name = os.path.basename(old_filename)
+            
+            if target_folder:
+                new_filename = os.path.join(target_folder, base_name)
+            else:
+                new_filename = base_name # Root
+            
+            new_filename = new_filename.replace('\\', '/')
+            
+            if new_filename != old_filename:
+                src_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
+                dst_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+                
+                try:
+                    dst_dir = os.path.dirname(dst_path)
+                    if dst_dir and not os.path.exists(dst_dir):
+                        os.makedirs(dst_dir)
+                    
+                    if os.path.exists(src_path):
+                        os.rename(src_path, dst_path)
+                        item['filename'] = new_filename
+                        count += 1
+                except Exception as e:
+                    print(f"Batch Move Error {mid}: {e}")
+        
+        if count > 0:
+            save_data()
+            
+    return jsonify({"status": "ok", "moved": count})
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:

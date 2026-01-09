@@ -255,9 +255,54 @@ async function fetchLibrary() {
 let allMedia = [];
 let currentFilter = 'all';
 
-// Navigation State
+// Batch State
+let selectedItems = new Set();
 let currentPath = "";
 let cachedFolders = [];
+
+function toggleSelection(id) {
+    if (selectedItems.has(id)) selectedItems.delete(id);
+    else selectedItems.add(id);
+    renderLibrary(allMedia);
+}
+
+async function createNewFolder() {
+    const name = prompt("Enter new folder name:");
+    if (!name) return;
+    if (selectedItems.size === 0) {
+        alert("Please select tracks to move into the new folder first.");
+        return;
+    }
+    await performBatchMove(name);
+}
+
+async function moveSelected() {
+    if (selectedItems.size === 0) {
+        alert("Select tracks first.");
+        return;
+    }
+    const name = prompt("Enter target folder name (or leave empty to move to Root):");
+    if (name === null) return;
+    await performBatchMove(name);
+}
+
+async function performBatchMove(folderName) {
+    const ids = Array.from(selectedItems);
+    try {
+        const res = await fetch('/api/library/batch_move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, folder: folderName })
+        });
+        if (res.ok) {
+            selectedItems.clear();
+            alert("Moved items successfully.");
+            fetchLibrary(); // Reload
+        } else {
+            alert("Move failed.");
+        }
+    } catch (e) { console.error(e); }
+}
 
 function navigateFolder(path) {
     currentPath = path;
@@ -269,27 +314,29 @@ function renderLibrary(data) {
     const list = document.getElementById('library-list');
     list.innerHTML = '';
 
-    // Update Breadcrumbs
+    // Update Breadcrumbs & Toolbar
     const crumbs = document.getElementById('lib-breadcrumbs');
     if (crumbs) {
-        if (!currentPath) crumbs.innerHTML = `<span style="opacity:0.5;">/ Root</span>`;
+        let html = '';
+        if (!currentPath) html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span>`;
         else {
-            // Interactive breadcrumb: Root > Path
-            // Simple approach: Root > [Back] Current
             const parts = currentPath.split('/').filter(p => p);
-            let html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span>`;
-
-            // Allow stepping back? simpler: Just show current
-            html += ` <span style="opacity:0.5;">/ ${parts.join('/')}</span>`;
-
-            // Add Back Button
-            // Calculate parent
+            html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span> <span style="opacity:0.5;">/ ${parts.join('/')}</span>`;
             let parent = parts.slice(0, -1).join('/');
             if (parent) parent += '/';
             html += ` <button onclick="navigateFolder('${parent}')" style="margin-left:20px; padding:2px 8px; cursor:pointer;">⬆ Up</button>`;
-
-            crumbs.innerHTML = html;
         }
+
+        // Add Batch Controls
+        if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
+            html += `
+                <div style="margin-left:auto; display:flex; gap:10px;">
+                    <button onclick="createNewFolder()" class="btn-primary" style="padding:2px 10px; font-size:0.8rem;">+ New Folder</button>
+                    ${selectedItems.size > 0 ? `<button onclick="moveSelected()" class="btn-card" style="padding:2px 10px; font-size:0.8rem;">Move (${selectedItems.size})</button>` : ''}
+                </div>
+            `;
+        }
+        crumbs.innerHTML = html;
     }
 
     const filtered = currentFilter === 'all' ? data : data.filter(d => d.category === currentFilter);
@@ -341,6 +388,8 @@ function renderLibrary(data) {
     itemsInView.forEach(item => {
         const card = document.createElement('div');
         card.className = 'media-card';
+        const isSelected = selectedItems.has(item.id);
+        if (isSelected) card.style.border = '1px solid #eda';
 
         // Buttons
         let buttons = '';
@@ -355,11 +404,10 @@ function renderLibrary(data) {
             // Listener view
         }
 
-        // Folder display is redundant if we are IN the folder, but maybe if flat view?
-        // With tree view, we don't need folder badge.
-
         card.innerHTML = `
-            <h4>${item.title}</h4>
+            ${(typeof IS_ADMIN !== 'undefined' && IS_ADMIN) ?
+                `<input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelection('${item.id}')" style="position:absolute; top:10px; left:10px; transform:scale(1.5);">` : ''}
+            <h4 style="margin-top:20px;">${item.title}</h4>
             <p>${item.category} • ${formatTime(item.duration)}</p>
             <div class="card-actions">
                 ${buttons}
