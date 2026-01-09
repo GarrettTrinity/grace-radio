@@ -255,120 +255,118 @@ async function fetchLibrary() {
 let allMedia = [];
 let currentFilter = 'all';
 
-function renderLibrary(data) {
-    // Navigation State
-    let currentPath = "";
-    let cachedFolders = [];
+// Navigation State
+let currentPath = "";
+let cachedFolders = [];
 
-    function navigateFolder(path) {
-        currentPath = path;
-        renderLibrary(allMedia);
+function navigateFolder(path) {
+    currentPath = path;
+    renderLibrary(allMedia);
+}
+
+function renderLibrary(data) {
+    allMedia = data;
+    const list = document.getElementById('library-list');
+    list.innerHTML = '';
+
+    // Update Breadcrumbs
+    const crumbs = document.getElementById('lib-breadcrumbs');
+    if (crumbs) {
+        if (!currentPath) crumbs.innerHTML = `<span style="opacity:0.5;">/ Root</span>`;
+        else {
+            // Interactive breadcrumb: Root > Path
+            // Simple approach: Root > [Back] Current
+            const parts = currentPath.split('/').filter(p => p);
+            let html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span>`;
+
+            // Allow stepping back? simpler: Just show current
+            html += ` <span style="opacity:0.5;">/ ${parts.join('/')}</span>`;
+
+            // Add Back Button
+            // Calculate parent
+            let parent = parts.slice(0, -1).join('/');
+            if (parent) parent += '/';
+            html += ` <button onclick="navigateFolder('${parent}')" style="margin-left:20px; padding:2px 8px; cursor:pointer;">⬆ Up</button>`;
+
+            crumbs.innerHTML = html;
+        }
     }
 
-    function renderLibrary(data) {
-        allMedia = data;
-        const list = document.getElementById('library-list');
-        list.innerHTML = '';
+    const filtered = currentFilter === 'all' ? data : data.filter(d => d.category === currentFilter);
 
-        // Update Breadcrumbs
-        const crumbs = document.getElementById('lib-breadcrumbs');
-        if (crumbs) {
-            if (!currentPath) crumbs.innerHTML = `<span style="opacity:0.5;">/ Root</span>`;
-            else {
-                // Interactive breadcrumb: Root > Path
-                // Simple approach: Root > [Back] Current
-                const parts = currentPath.split('/').filter(p => p);
-                let html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span>`;
+    // Grouping Logic
+    const itemsInView = [];
+    const foldersInView = new Set();
 
-                // Allow stepping back? simpler: Just show current
-                html += ` <span style="opacity:0.5;">/ ${parts.join('/')}</span>`;
+    filtered.forEach(item => {
+        let textPath = (item.filename || '').replace(/\\/g, '/');
+        // If currentPath is set, we expect prefix
+        if (!currentPath || textPath.startsWith(currentPath)) {
+            // Remove prefix to see relative path
+            const relPath = currentPath ? textPath.substring(currentPath.length) : textPath;
 
-                // Add Back Button
-                // Calculate parent
-                let parent = parts.slice(0, -1).join('/');
-                if (parent) parent += '/';
-                html += ` <button onclick="navigateFolder('${parent}')" style="margin-left:20px; padding:2px 8px; cursor:pointer;">⬆ Up</button>`;
-
-                crumbs.innerHTML = html;
+            if (relPath.includes('/')) {
+                // It is inside a subfolder relative to here
+                const sub = relPath.split('/')[0];
+                foldersInView.add(sub);
+            } else {
+                // It is a file in the current view
+                itemsInView.push(item);
             }
         }
+    });
 
-        const filtered = currentFilter === 'all' ? data : data.filter(d => d.category === currentFilter);
+    if (itemsInView.length === 0 && foldersInView.size === 0) {
+        list.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666;">No media found.</p>';
+        return;
+    }
 
-        // Grouping Logic
-        const itemsInView = [];
-        const foldersInView = new Set();
-
-        filtered.forEach(item => {
-            let textPath = (item.filename || '').replace(/\\/g, '/');
-            // If currentPath is set, we expect prefix
-            if (!currentPath || textPath.startsWith(currentPath)) {
-                // Remove prefix to see relative path
-                const relPath = currentPath ? textPath.substring(currentPath.length) : textPath;
-
-                if (relPath.includes('/')) {
-                    // It is inside a subfolder relative to here
-                    const sub = relPath.split('/')[0];
-                    foldersInView.add(sub);
-                } else {
-                    // It is a file in the current view
-                    itemsInView.push(item);
-                }
-            }
-        });
-
-        if (itemsInView.length === 0 && foldersInView.size === 0) {
-            list.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666;">No media found.</p>';
-            return;
-        }
-
-        // Render Folders
-        Array.from(foldersInView).sort().forEach(f => {
-            const card = document.createElement('div');
-            card.className = 'media-card folder-card';
-            card.style.background = '#222';
-            card.style.border = '1px solid #444';
-            card.style.cursor = 'pointer';
-            card.title = `Open ${f}`;
-            card.innerHTML = `
+    // Render Folders
+    Array.from(foldersInView).sort().forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'media-card folder-card';
+        card.style.background = '#222';
+        card.style.border = '1px solid #444';
+        card.style.cursor = 'pointer';
+        card.title = `Open ${f}`;
+        card.innerHTML = `
             <div style="font-size:2.5em; text-align:center; color:#eda;">📁</div>
             <h4 style="text-align:center; margin-top:5px; color:#fff;">${f}</h4>
          `;
-            card.onclick = () => navigateFolder(currentPath + f + '/');
-            list.appendChild(card);
-        });
+        card.onclick = () => navigateFolder(currentPath + f + '/');
+        list.appendChild(card);
+    });
 
-        // Render Files
-        itemsInView.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'media-card';
+    // Render Files
+    itemsInView.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'media-card';
 
-            // Buttons
-            let buttons = '';
-            if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
-                buttons = `
+        // Buttons
+        let buttons = '';
+        if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
+            buttons = `
                 <button class="btn-card" onclick="queueItem('${item.id}')">Queue Next</button>
                 <button class="btn-card" onclick="openScheduleModal('${item.id}', '${item.title.replace(/'/g, "&apos;")}')">Schedule</button>
                 <button class="btn-card" onclick='openEditModal(${JSON.stringify(item)})'>Edit</button>
                 <button class="btn-card" style="color:#ff4444" onclick="deleteItem('${item.id}')">Delete</button>
              `;
-            } else {
-                // Listener view
-            }
+        } else {
+            // Listener view
+        }
 
-            // Folder display is redundant if we are IN the folder, but maybe if flat view?
-            // With tree view, we don't need folder badge.
+        // Folder display is redundant if we are IN the folder, but maybe if flat view?
+        // With tree view, we don't need folder badge.
 
-            card.innerHTML = `
+        card.innerHTML = `
             <h4>${item.title}</h4>
             <p>${item.category} • ${formatTime(item.duration)}</p>
             <div class="card-actions">
                 ${buttons}
             </div>
         `;
-            list.appendChild(card);
-        });
-    }
+        list.appendChild(card);
+    });
 }
 
 function filterLibrary(cat) {
