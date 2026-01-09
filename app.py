@@ -570,6 +570,20 @@ def library():
     # POST - Add items is handled by upload mostly, but maybe editing metadata?
     return jsonify({"error": "Use upload"}), 400
 
+@app.route('/api/library/folders')
+def library_folders():
+    """Returns list of unique folder paths used in library"""
+    folders = set()
+    with state_lock:
+        for item in state['library']:
+            fname = item.get('filename', '').replace('\\', '/')
+            if '/' in fname:
+                # Extract dir
+                d = os.path.dirname(fname)
+                if d and d != '.':
+                    folders.add(d)
+    return jsonify(sorted(list(folders)))
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:

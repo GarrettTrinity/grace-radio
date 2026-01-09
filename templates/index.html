@@ -86,15 +86,17 @@
             <div id="library-view" class="view">
                 <div class="view-header">
                     <h2>Media Library</h2>
+                    <div id="lib-breadcrumbs"
+                        style="flex:1; margin-left:20px; font-family:monospace; color:#aaa; display:flex; align-items:center;">
+                        <!-- JS will populate -->
+                    </div>
                     {% if is_admin %}
                     <button class="btn-primary" onclick="openUploadModal()">+ Upload Media</button>
-                    <button class="btn-primary" onclick="openYoutubeModal()" style="margin-left:10px;">+
-                        YouTube</button>
                     {% endif %}
                 </div>
 
-                <div class="filter-bar">
-                    <button class="filter-btn active" onclick="filterLibrary('all')">All</button>
+                <div class="library-controls">
+                    <button class="filter-btn active" onclick="filterLibrary('all')">All Library</button>
                     <button class="filter-btn" onclick="filterLibrary('Music')">Music</button>
                     <button class="filter-btn" onclick="filterLibrary('Sermon')">Sermons</button>
                     <button class="filter-btn" onclick="filterLibrary('Announcement')">Announcements</button>
@@ -220,7 +222,9 @@
                 </div>
                 <div class="form-group">
                     <label>Folder / Artist (Optional)</label>
-                    <input type="text" id="edit-folder" placeholder="e.g. Newsboys">
+                    <input type="text" id="edit-folder" list="folder-datalist"
+                        placeholder="Select or type new folder...">
+                    <datalist id="folder-datalist"></datalist>
                     <small style="color:#666; display:block; margin-top:5px;">Moves file to subfolder. Leave empty for
                         root.</small>
                 </div>

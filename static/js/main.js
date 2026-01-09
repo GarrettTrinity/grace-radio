@@ -256,55 +256,119 @@ let allMedia = [];
 let currentFilter = 'all';
 
 function renderLibrary(data) {
-    allMedia = data; // store
-    const list = document.getElementById('library-list');
-    list.innerHTML = '';
+    // Navigation State
+    let currentPath = "";
+    let cachedFolders = [];
 
-    const filtered = currentFilter === 'all' ? data : data.filter(d => d.category === currentFilter);
-
-    if (filtered.length === 0) {
-        list.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666;">No media found.</p>';
-        return;
+    function navigateFolder(path) {
+        currentPath = path;
+        renderLibrary(allMedia);
     }
 
-    filtered.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'media-card';
+    function renderLibrary(data) {
+        allMedia = data;
+        const list = document.getElementById('library-list');
+        list.innerHTML = '';
 
-        // Buttons
-        let buttons = '';
-        if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
-            buttons = `
+        // Update Breadcrumbs
+        const crumbs = document.getElementById('lib-breadcrumbs');
+        if (crumbs) {
+            if (!currentPath) crumbs.innerHTML = `<span style="opacity:0.5;">/ Root</span>`;
+            else {
+                // Interactive breadcrumb: Root > Path
+                // Simple approach: Root > [Back] Current
+                const parts = currentPath.split('/').filter(p => p);
+                let html = `<span onclick="navigateFolder('')" style="cursor:pointer; color:#88f; font-weight:bold;">/ Root</span>`;
+
+                // Allow stepping back? simpler: Just show current
+                html += ` <span style="opacity:0.5;">/ ${parts.join('/')}</span>`;
+
+                // Add Back Button
+                // Calculate parent
+                let parent = parts.slice(0, -1).join('/');
+                if (parent) parent += '/';
+                html += ` <button onclick="navigateFolder('${parent}')" style="margin-left:20px; padding:2px 8px; cursor:pointer;">⬆ Up</button>`;
+
+                crumbs.innerHTML = html;
+            }
+        }
+
+        const filtered = currentFilter === 'all' ? data : data.filter(d => d.category === currentFilter);
+
+        // Grouping Logic
+        const itemsInView = [];
+        const foldersInView = new Set();
+
+        filtered.forEach(item => {
+            let textPath = (item.filename || '').replace(/\\/g, '/');
+            // If currentPath is set, we expect prefix
+            if (!currentPath || textPath.startsWith(currentPath)) {
+                // Remove prefix to see relative path
+                const relPath = currentPath ? textPath.substring(currentPath.length) : textPath;
+
+                if (relPath.includes('/')) {
+                    // It is inside a subfolder relative to here
+                    const sub = relPath.split('/')[0];
+                    foldersInView.add(sub);
+                } else {
+                    // It is a file in the current view
+                    itemsInView.push(item);
+                }
+            }
+        });
+
+        if (itemsInView.length === 0 && foldersInView.size === 0) {
+            list.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666;">No media found.</p>';
+            return;
+        }
+
+        // Render Folders
+        Array.from(foldersInView).sort().forEach(f => {
+            const card = document.createElement('div');
+            card.className = 'media-card folder-card';
+            card.style.background = '#222';
+            card.style.border = '1px solid #444';
+            card.style.cursor = 'pointer';
+            card.title = `Open ${f}`;
+            card.innerHTML = `
+            <div style="font-size:2.5em; text-align:center; color:#eda;">📁</div>
+            <h4 style="text-align:center; margin-top:5px; color:#fff;">${f}</h4>
+         `;
+            card.onclick = () => navigateFolder(currentPath + f + '/');
+            list.appendChild(card);
+        });
+
+        // Render Files
+        itemsInView.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'media-card';
+
+            // Buttons
+            let buttons = '';
+            if (typeof IS_ADMIN !== 'undefined' && IS_ADMIN) {
+                buttons = `
                 <button class="btn-card" onclick="queueItem('${item.id}')">Queue Next</button>
                 <button class="btn-card" onclick="openScheduleModal('${item.id}', '${item.title.replace(/'/g, "&apos;")}')">Schedule</button>
                 <button class="btn-card" onclick='openEditModal(${JSON.stringify(item)})'>Edit</button>
                 <button class="btn-card" style="color:#ff4444" onclick="deleteItem('${item.id}')">Delete</button>
              `;
-        } else {
-            // Listener view: maybe just Queue Request? User said "User allowed to add... to queue".
-            // If "User" = "Listener", then allow Queue.
-            // If "User" = "Admin", then don't.
-            // Based on previous thought, I'll be safe: Listeners = Read Only.
-            // But if user wants requests, I can add it later. For now, read only.
-            // Actually, showing "Duration" is enough.
-        }
+            } else {
+                // Listener view
+            }
 
-        // Extract folder for display
-        let folderName = '';
-        if (item.filename && item.filename.includes('/')) {
-            folderName = item.filename.substring(0, item.filename.lastIndexOf('/'));
-            folderName = `<span style="background:#334; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-right:5px;">📁 ${folderName}</span>`;
-        }
+            // Folder display is redundant if we are IN the folder, but maybe if flat view?
+            // With tree view, we don't need folder badge.
 
-        card.innerHTML = `
+            card.innerHTML = `
             <h4>${item.title}</h4>
-            <p>${folderName} ${item.category} • ${formatTime(item.duration)}</p>
+            <p>${item.category} • ${formatTime(item.duration)}</p>
             <div class="card-actions">
                 ${buttons}
             </div>
         `;
-        list.appendChild(card);
-    });
+            list.appendChild(card);
+        });
+    }
 }
 
 function filterLibrary(cat) {
@@ -461,6 +525,17 @@ if (ytForm) {
 }
 
 // --- Edit Modal Handlers ---
+async function refreshFolderList() {
+    try {
+        const res = await fetch('/api/library/folders');
+        const folders = await res.json();
+        const dl = document.getElementById('folder-datalist');
+        if (dl) {
+            dl.innerHTML = folders.map(f => `<option value="${f}">`).join('');
+        }
+    } catch (e) { }
+}
+
 function openEditModal(item) {
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-title').value = item.title;
@@ -478,6 +553,8 @@ function openEditModal(item) {
     }
     const folderInput = document.getElementById('edit-folder');
     if (folderInput) folderInput.value = folder;
+
+    refreshFolderList(); // Async fetch suggestions
 
     document.getElementById('edit-modal').style.display = 'block';
 }
