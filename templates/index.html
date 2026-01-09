@@ -21,6 +21,11 @@
                 <div class="live-indicator">
                     <span class="dot"></span> LIVE
                 </div>
+                {% if is_admin %}
+                <div id="listener-stats" style="margin-top:5px; font-size:0.8rem; opacity:0.7;">
+                    👂 <span id="listener-count">0</span>
+                </div>
+                {% endif %}
             </div>
 
             <div class="menu">

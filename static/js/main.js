@@ -56,15 +56,22 @@ async function updateStatus() {
         // data.server_time
         // We can estimate offset roughly.
 
-        const state = data.current;
-        const queueLen = data.queue_len;
+        const state = data.current_track;
+        const queueList = data.queue || [];
+        const listeners = data.listeners || 0;
 
-        updatePlayerUI(state, queueLen);
+        // Update Listeners (Admin only usually, but safe to try)
+        const lc = document.getElementById('listener-count');
+        if (lc) lc.innerText = listeners;
 
-        if (state) {
+        updatePlayerUI(state, queueList);
+
+        if (state && data.playing) {
+            // Inject elapsed from server to sync function
+            state.elapsed = data.elapsed;
             handleAudioSync(state);
         } else {
-            // Nothing playing
+            // Nothing playing or paused
             audio.pause();
             currentMediaId = null;
         }
@@ -74,7 +81,7 @@ async function updateStatus() {
     }
 }
 
-function updatePlayerUI(state, qLen) {
+function updatePlayerUI(state, queueList) {
     const title = document.getElementById('current-title');
     const category = document.getElementById('current-category');
     const progressBar = document.getElementById('progress-bar');
@@ -88,31 +95,35 @@ function updatePlayerUI(state, qLen) {
         category.innerText = "OFFLINE";
         progressBar.style.width = '0%';
         initials.innerText = "♫";
-        return;
-    }
+    } else {
+        title.innerText = state.title;
+        category.innerText = state.category;
 
-    title.innerText = state.title;
-    category.innerText = state.category;
+        // Update Art (Mock)
+        initials.innerText = state.category === 'Music' ? '♫' : (state.category === 'Sermon' ? '✝' : '📢');
 
-    // Update Art (Mock)
-    initials.innerText = state.category === 'Music' ? '♫' : (state.category === 'Sermon' ? '✝' : '📢');
+        // Progress
+        const duration = state.duration || 1;
+        const elapsed = state.elapsed || 0;
 
-    // Progress
-    const duration = state.duration || 1;
-    const elapsed = state.elapsed || 0;
-
-    // Only update UI from server if NOT playing (to avoid jitter with local audio)
-    if (!isPlaying) {
-        const pct = Math.min(100, (elapsed / duration) * 100);
-        progressBar.style.width = pct + '%';
-        timeCur.innerText = formatTime(elapsed);
-        timeTot.innerText = formatTime(duration);
+        // Only update UI from server if NOT playing (to avoid jitter with local audio)
+        if (!isPlaying) {
+            const pct = Math.min(100, (elapsed / duration) * 100);
+            progressBar.style.width = pct + '%';
+            timeCur.innerText = formatTime(elapsed);
+            timeTot.innerText = formatTime(duration);
+        }
     }
 
     // Update Queue Preview
     const qList = document.getElementById('active-queue');
-    if (qLen > 0) {
-        qList.innerHTML = `<p>${qLen} items in priority queue</p>`;
+    if (queueList.length > 0) {
+        qList.innerHTML = queueList.map((item, idx) => `
+            <div class="queue-item" style="padding:5px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+                <span>${idx + 1}. ${item.title}</span>
+                <span class="badge" style="font-size:0.7em">${item.category}</span>
+            </div>
+        `).join('');
     } else {
         qList.innerHTML = `<p class="empty-state">Queue is empty. Shuffling playlist.</p>`;
     }
