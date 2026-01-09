@@ -188,11 +188,18 @@ function handleAudioSync(state) {
 // Add 'ended' listener to bridge gap
 audio.onended = () => {
     console.log("Track ended locally. Waiting for server...");
-    // We could loop the last 1s of silence or just wait.
-    // The poll loop will catch the new track soon.
-    // To keep the audio session "hot", some apps play a silent track here.
-    // tailored to be simple:
     setTimeout(updateStatus, 500); // Check server sooner
+};
+
+// Handle Loading Errors (e.g. 404, Format)
+audio.onerror = (e) => {
+    console.error("Audio Error:", audio.error);
+    if (currentMediaId) {
+        console.log("Track failed to load/play. Reporting skip...");
+        // Call the skip API so the server moves on
+        // Prevents getting stuck on a broken file
+        skipTrack();
+    }
 };
 
 // Smooth UI updates from local audio
