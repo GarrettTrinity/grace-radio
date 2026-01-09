@@ -70,10 +70,9 @@
                     <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1"
                         onchange="setVolume(this.value)">
                     <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
+                    {% if is_admin %}
                     <button class="control-btn" onclick="skipTrack()">Skip</button>
                     <button class="control-btn" onclick="openYoutubeModal()">YT Import</button>
-                    <button class="control-btn" style="background:#ff4444; color:white; font-size: 0.8em;"
-                        onclick="emergencyReset()">Reset</button>
                     {% endif %}
                 </div>
             </div>

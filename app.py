@@ -533,9 +533,7 @@ def get_status():
 @app.route('/api/library', methods=['GET', 'POST'])
 def library():
     if request.method == 'GET':
-        with state_lock:
-            # Return a copy to be safe, or just serialize inside lock
-            return jsonify(state['library'])
+        return jsonify(state['library'])
     
     # POST - Add items is handled by upload mostly, but maybe editing metadata?
     return jsonify({"error": "Use upload"}), 400
@@ -786,13 +784,6 @@ def custom_static(filename):
         
     print(f"404: Could not find {filename} in {app.config['UPLOAD_FOLDER']} or {local_path}")
     return "File not found", 404
-
-@app.route('/api/danger/clear_queue', methods=['POST'])
-def clear_queue():
-    with state_lock:
-        state['queue'] = []
-        save_state()
-    return jsonify({"status": "cleared"})
 
 if __name__ == '__main__':
     # Local development

@@ -428,18 +428,6 @@ async function skipTrack() {
     }
 }
 
-async function emergencyReset() {
-    if (!confirm("EMERGENCY: This will clear the queue and force a restart. Use only if stuck.")) return;
-    try {
-        await fetch('/api/danger/clear_queue', { method: 'POST' });
-        await fetch('/api/danger/force_next', { method: 'POST' });
-        alert("Reset signal sent. Wait 5 seconds...");
-        setTimeout(fetchLibrary, 5000);
-    } catch (e) {
-        alert(e);
-    }
-}
-
 if (cookieForm) {
     cookieForm.onsubmit = async (e) => {
         e.preventDefault();
