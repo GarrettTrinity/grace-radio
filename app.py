@@ -611,15 +611,33 @@ def batch_move():
                 src_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
                 dst_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
                 
+                # Check bundled fallback if not in persistent
+                is_bundled = False
+                if not os.path.exists(src_path):
+                    bundled_path = os.path.join(app.root_path, 'static', 'media', old_filename)
+                    if os.path.exists(bundled_path):
+                         src_path = bundled_path
+                         is_bundled = True
+                
                 try:
+                    # Create dst dir
                     dst_dir = os.path.dirname(dst_path)
                     if dst_dir and not os.path.exists(dst_dir):
                         os.makedirs(dst_dir)
                     
                     if os.path.exists(src_path):
-                        os.rename(src_path, dst_path)
+                        if is_bundled:
+                             import shutil
+                             shutil.copy2(src_path, dst_path) # Copy to persistent
+                             # We can't delete bundled file, but DB now points to new path which is in UPLOAD
+                        else:
+                             os.rename(src_path, dst_path)
+                             
                         item['filename'] = new_filename
                         count += 1
+                    else:
+                        print(f"Batch Move: Source not found for {old_filename}")
+                        
                 except Exception as e:
                     print(f"Batch Move Error {mid}: {e}")
         
@@ -868,9 +886,22 @@ def update_library_item():
                 else:
                      new_filename = base_name
                 
+                # Normalize slashes
+                new_filename = new_filename.replace('\\', '/')
+
                 if new_filename != old_filename:
                     # Move File
+                    src_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
                     dst_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+                    
+                    # Check bundled fallback
+                    is_bundled = False
+                    if not os.path.exists(src_path):
+                        bundled_path = os.path.join(app.root_path, 'static', 'media', old_filename)
+                        if os.path.exists(bundled_path):
+                             src_path = bundled_path
+                             is_bundled = True
+
                     dst_dir = os.path.dirname(dst_path)
                     
                     try:
@@ -880,9 +911,15 @@ def update_library_item():
                             
                         # Move
                         if os.path.exists(src_path):
-                            os.rename(src_path, dst_path)
-                            item['filename'] = new_filename.replace('\\', '/') # Ensure URL safe
-                            print(f"MOVED: {old_filename} -> {new_filename}")
+                             if is_bundled:
+                                 import shutil
+                                 shutil.copy2(src_path, dst_path)
+                             else:
+                                 os.rename(src_path, dst_path)
+
+                             item['filename'] = new_filename
+                             print(f"MOVED: {old_filename} -> {new_filename}")
+
                         else:
                             # If file missing, just update DB path? No, risky. 
                             print(f"MOVE FAILED: Source {src_path} not found.")
