@@ -645,6 +645,48 @@ import tempfile
 
 # ...
 
+@app.route('/api/admin/repair_library')
+def repair_library():
+    """Fixes missing or incorrect durations using ffprobe"""
+    count = 0
+    fixed = []
+    
+    with state_lock:
+        for item in state['library']:
+            # Check if duration is suspicious (0, or <60s for non-music?)
+            # Or just check ALL to be safe.
+            # Let's check files that exist.
+            fpath = os.path.join(app.config['UPLOAD_FOLDER'], item['filename'])
+            if os.path.exists(fpath):
+                old_dur = item.get('duration', 0)
+                
+                # Get actual duration
+                try:
+                    # Use ffprobe via shell
+                    # ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 input.mp3
+                    cmd = [
+                        'ffprobe', '-v', 'error', 
+                        '-show_entries', 'format=duration', 
+                        '-of', 'default=noprint_wrappers=1:nokey=1', 
+                        fpath
+                    ]
+                    # We need to run this subprocess
+                    import subprocess
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    real_dur = float(result.stdout.strip())
+                    
+                    if abs(real_dur - old_dur) > 5: # If variance > 5s
+                        item['duration'] = real_dur
+                        fixed.append(f"{item['title']}: {old_dur} -> {real_dur}")
+                        count += 1
+                except Exception as e:
+                    print(f"Repair failed for {item['filename']}: {e}")
+        
+        if count > 0:
+            save_data()
+            
+    return jsonify({"status": "repaired", "count": count, "details": fixed})
+
 @app.route('/api/upload/cookies', methods=['POST'])
 def upload_cookies():
     try:
