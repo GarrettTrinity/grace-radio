@@ -78,9 +78,9 @@ function setupDeck(id) {
             const pct = (cur / dur) * 100;
             const bar = document.getElementById('progress-bar');
             if (bar) bar.style.width = pct + '%';
-            const c = document.getElementById('time-cur');
+            const c = document.getElementById('current-time');
             if (c) c.innerText = formatTime(cur);
-            const t = document.getElementById('time-tot');
+            const t = document.getElementById('total-time');
             if (t) t.innerText = formatTime(dur);
         }
     };
@@ -111,31 +111,23 @@ function setVolume(val) {
 
 async function updateStatus() {
     try {
-        // Cache bust to ensure fresh state on mobile
         const res = await fetch('/api/status?t=' + Date.now());
         const data = await res.json();
-
-        // Sync time
-        // data.server_time
-        // We can estimate offset roughly.
-
         const state = data.current_track;
         const queueList = data.queue || [];
         const listeners = data.listeners || 0;
 
-        // Update Listeners (Admin only usually, but safe to try)
         const lc = document.getElementById('listener-count');
         if (lc) lc.innerText = listeners;
 
         updatePlayerUI(state, queueList);
 
         if (state && data.playing) {
-            // Inject elapsed from server to sync function
             state.elapsed = data.elapsed;
             handleAudioSync(state);
         } else {
-            // Nothing playing or paused
-            audio.pause();
+            // Pause all
+            if (decks.length) decks.forEach(d => d.el.pause());
             currentMediaId = null;
         }
 
