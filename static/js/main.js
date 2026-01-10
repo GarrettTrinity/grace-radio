@@ -133,6 +133,8 @@ async function updateStatus() {
 
     } catch (e) {
         console.error(e);
+    } finally {
+        setTimeout(updateStatus, 1000);
     }
 }
 
