@@ -103,23 +103,25 @@ def extract_metadata(filepath, media_id):
                          found_art = audio.pictures[0].data
 
             if found_art:
-                # Save to static/art
+                # Save to Persistent Storage
+                art_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'art')
+                if not os.path.exists(art_dir):
+                    os.makedirs(art_dir)
+                
                 ext = '.jpg' # Default
-                # detections... simple check
                 if found_art[0:4] == b'\x89PNG': ext = '.png'
                 
                 art_filename = f"{media_id}{ext}"
-                dest = os.path.join(app.root_path, 'static', 'art', art_filename)
+                dest = os.path.join(art_dir, art_filename)
                 
                 # Write only if doesn't exist (to preserve custom uploads?)
-                # Actually, during bootstrap/scan, we might want to respect existing.
+                # Actually, during bootstrap, we might respect existing.
                 if not os.path.exists(dest):
                     with open(dest, 'wb') as f:
                         f.write(found_art)
                     print(f"Extracted Art for {media_id}")
                     art_path = f"/static/art/{art_filename}"
                 else:
-                    # check if we should update? Let's just return existing path
                     art_path = f"/static/art/{art_filename}"
 
     except Exception as e:
@@ -1122,8 +1124,8 @@ def update_library_item():
                 file = request.files['art']
                 if file and file.filename != '':
                     try:
-                        # Ensure dir exists
-                        art_dir = os.path.join(app.root_path, 'static', 'art')
+                        # Ensure persistent dir exists
+                        art_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'art')
                         if not os.path.exists(art_dir):
                             os.makedirs(art_dir)
 
@@ -1347,6 +1349,21 @@ def custom_static(filename):
         
     print(f"404: Could not find {filename} in {app.config['UPLOAD_FOLDER']} or {local_path}")
     return "File not found", 404
+
+@app.route('/static/art/<path:filename>')
+def custom_art(filename):
+    # 1. Check Permanent Disk (Uploads)
+    # Be careful with subdirectory 'art'
+    art_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'art')
+    upload_path = os.path.join(art_dir, filename)
+    
+    if os.path.exists(upload_path):
+        return send_from_directory(art_dir, filename)
+    
+    # 2. Check content-type param in filename? No.
+    
+    print(f"404 Art: {filename} not found in {art_dir}")
+    return "Not Found", 404
 
 if __name__ == '__main__':
     # Local development
