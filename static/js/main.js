@@ -65,24 +65,27 @@ function initAudio() {
 
 function setupDeck(id) {
     const el = document.getElementById(id);
-    const source = audioCtx.createMediaElementSource(el);
-
-    // EQ Chain
-    const low = audioCtx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 320;
-    const mid = audioCtx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1000; mid.Q.value = 0.5;
-    const high = audioCtx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 3200;
-
-    const gain = audioCtx.createGain();
-
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // On Mobile, Web Audio API graph often kills background audio. 
-    // We bypass the graph to ensure native playback reliability.
+    let source = null;
+    let low = null;
+    let mid = null;
+    let high = null;
+    let gain = null;
+
     if (!isMobile) {
+        source = audioCtx.createMediaElementSource(el); // Only hijack on Desktop
+
+        // EQ Chain
+        low = audioCtx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 320;
+        mid = audioCtx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1000; mid.Q.value = 0.5;
+        high = audioCtx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 3200;
+
+        gain = audioCtx.createGain();
+
         source.connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
     } else {
-        // Mobile: Direct output (No EQ, No Gain Node usage for crossfade - fallbacks needed)
-        console.log("Mobile detected: Bypassing Web Audio Graph for reliability.");
+        console.log("Mobile detected: Native Audio Mode (No Web Audio Graph)");
     }
 
     // Event Listeners
@@ -376,9 +379,9 @@ function handleAudioSync(state) {
         }
     }
 
-    // Apply Live EQ (Always, for listeners)
+    // Apply Live EQ (Always, for listeners if supported)
     const deck = decks[activeDeckIndex];
-    if (deck) {
+    if (deck && deck.low && deck.mid && deck.high) {
         const eq = state.eq || { low: 0, mid: 0, high: 0 };
         const safeVal = (v) => Math.max(-10, Math.min(10, v || 0));
         const now = audioCtx.currentTime;
@@ -399,10 +402,17 @@ function openEQModal() {
     const deck = decks[activeDeckIndex] || decks[0];
     if (!deck) return; // Should not happen
 
-    // Get current vals
-    document.getElementById('eq-low').value = deck.low.gain.value;
-    document.getElementById('eq-mid').value = deck.mid.gain.value;
-    document.getElementById('eq-high').value = deck.high.gain.value;
+    // Get current vals if nodes exist
+    if (deck.low) {
+        document.getElementById('eq-low').value = deck.low.gain.value;
+        document.getElementById('eq-mid').value = deck.mid.gain.value;
+        document.getElementById('eq-high').value = deck.high.gain.value;
+    } else {
+        // Mobile fallback - just show default
+        document.getElementById('eq-low').value = 0;
+        document.getElementById('eq-mid').value = 0;
+        document.getElementById('eq-high').value = 0;
+    }
 
     updateEQLabels();
 
@@ -427,9 +437,11 @@ function updateEQLabels() {
     // Live Review: Apply to Active Deck
     if (decks.length) {
         const deck = decks[activeDeckIndex];
-        deck.low.gain.value = low;
-        deck.mid.gain.value = mid;
-        deck.high.gain.value = high;
+        if (deck.low) {
+            deck.low.gain.value = low;
+            deck.mid.gain.value = mid;
+            deck.high.gain.value = high;
+        }
     }
 }
 
