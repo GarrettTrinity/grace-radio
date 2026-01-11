@@ -74,14 +74,58 @@ state = {
 
 state_lock = threading.Lock()
 
-def get_media_duration(filepath):
+def extract_metadata(filepath, media_id):
+    """
+    Extracts duration and Album Art (ID3).
+    Returns (duration, art_filename_or_None)
+    """
+    duration = 0
+    art_path = None
+    
     try:
         audio = MutagenFile(filepath)
-        if audio is not None and audio.info is not None:
-            return audio.info.length
+        if audio is not None:
+            if audio.info is not None:
+                duration = audio.info.length
+            
+            # ID3 Art Extraction
+            # Check for standard ID3 tags (APIC)
+            found_art = None
+            if hasattr(audio, 'tags') and audio.tags:
+                # MP3/ID3
+                for tag in audio.tags.values():
+                    if tag.FrameID == 'APIC':
+                        found_art = tag.data
+                        break
+                # FLAC/Ogg
+                if not found_art and hasattr(audio, 'pictures'):
+                     if audio.pictures:
+                         found_art = audio.pictures[0].data
+
+            if found_art:
+                # Save to static/art
+                ext = '.jpg' # Default
+                # detections... simple check
+                if found_art[0:4] == b'\x89PNG': ext = '.png'
+                
+                art_filename = f"{media_id}{ext}"
+                dest = os.path.join(app.root_path, 'static', 'art', art_filename)
+                
+                # Write only if doesn't exist (to preserve custom uploads?)
+                # Actually, during bootstrap/scan, we might want to respect existing.
+                if not os.path.exists(dest):
+                    with open(dest, 'wb') as f:
+                        f.write(found_art)
+                    print(f"Extracted Art for {media_id}")
+                    art_path = f"/static/art/{art_filename}"
+                else:
+                    # check if we should update? Let's just return existing path
+                    art_path = f"/static/art/{art_filename}"
+
     except Exception as e:
-        print(f"Error reading duration: {e}")
-    return 0
+        print(f"Error reading metadata: {e}")
+        
+    return duration, art_path
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -142,13 +186,16 @@ def load_data():
                     continue
                     
                 filepath = os.path.join(local_static, filename)
-                duration = get_media_duration(filepath)
+                # Generate ID first so we can use it for art
+                mid = str(int(time.time()*1000) + random.randint(1,999))
+                duration, art = extract_metadata(filepath, mid)
                 
                 media_item = {
-                    "id": str(int(time.time()*1000) + random.randint(1,999)),
+                    "id": mid,
                     "title": os.path.splitext(filename)[0].replace('_', ' '),
                     "filename": filename,
                     "duration": duration,
+                    "art": art,  # New Field
                     "category": "Music", # Default to Music for bootstrap
                     "type": "audio",
                     "added_at": time.time()
@@ -737,15 +784,18 @@ def upload_file():
             print(f"DEBUG: Saving file to {path}") # LOGGING
             file.save(path)
             
-            duration = get_media_duration(path)
-            
             # Small sleep to ensure unique ID if multiple files uploaded instantly
             time.sleep(0.01)
+            mid = str(int(time.time()*1000)) + str(random.randint(0,1000))
+            
+            duration, art = extract_metadata(path, mid)
+            
             media_item = {
-                "id": str(int(time.time()*1000)) + str(random.randint(0,1000)),
+                "id": mid,
                 "title": filename, 
                 "filename": filename,
                 "duration": duration,
+                "art": art,
                 "category": category,
                 "type": "audio"
             }
@@ -1054,13 +1104,35 @@ def ensure_queue_filled():
 
 @app.route('/api/library/update', methods=['POST'])
 def update_library_item():
-    data = request.json
+    # Support both JSON and FormData
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form
+
     mid = data.get('id')
     with state_lock:
         item = next((m for m in state['library'] if str(m['id']) == str(mid)), None)
         if item:
             if 'title' in data: item['title'] = data['title']
             if 'category' in data: item['category'] = data['category']
+            
+            # Art Upload
+            if 'art' in request.files:
+                file = request.files['art']
+                if file and file.filename != '':
+                    # Save art with ID
+                    ext = os.path.splitext(file.filename)[1].lower()
+                    if not ext: ext = '.jpg'
+                    art_filename = f"{mid}{ext}"
+                    dest = os.path.join(app.root_path, 'static', 'art', art_filename)
+                    file.save(dest)
+                    item['art'] = f"/static/art/{art_filename}?t={int(time.time())}" # cache bust
+                    
+                    # Propagate to Current Track
+                    if state.get('current_track') and str(state['current_track']['id']) == str(mid):
+                        state['current_track']['art'] = item['art']
+
             if 'eq' in data: 
                 item['eq'] = data['eq'] # Store EQ settings {low, mid, high}
                 # Propagate to Current Track if active (Immediate Listener Update)

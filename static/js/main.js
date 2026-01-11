@@ -323,8 +323,17 @@ function updatePlayerUI(state, queueList, userVote) {
         }
 
 
-        // Update Art (Mock)
-        initials.innerText = state.category === 'Music' ? '♫' : (state.category === 'Sermon' ? '✝' : '📢');
+        // Update Art
+        if (state.art) {
+            art.style.backgroundImage = `url('${state.art}')`;
+            art.style.backgroundSize = 'cover';
+            art.style.backgroundPosition = 'center';
+            initials.style.display = 'none';
+        } else {
+            art.style.backgroundImage = 'none';
+            initials.innerText = state.category === 'Music' ? '♫' : (state.category === 'Sermon' ? '✝' : '📢');
+            initials.style.display = 'block';
+        }
 
         // Progress
         const duration = state.duration || 1;
@@ -908,6 +917,17 @@ function openEditModal(item) {
     const folderInput = document.getElementById('edit-folder');
     if (folderInput) folderInput.value = folder;
 
+    // Art Preview
+    const preview = document.getElementById('current-art-preview');
+    const artInput = document.getElementById('edit-art');
+    if (artInput) artInput.value = ""; // Reset file
+
+    if (item.art) {
+        preview.innerHTML = `<img src="${item.art}" style="height:50px; border-radius:4px;"> <span style="font-size:0.8em; color:#aaa;">Current Art</span>`;
+    } else {
+        preview.innerHTML = ``;
+    }
+
     refreshFolderList(); // Async fetch suggestions
 
     document.getElementById('edit-modal').style.display = 'block';
@@ -918,16 +938,23 @@ const editForm = document.getElementById('edit-form');
 if (editForm) {
     editForm.onsubmit = async (e) => {
         e.preventDefault();
-        const id = document.getElementById('edit-id').value;
-        const title = document.getElementById('edit-title').value;
-        const category = document.getElementById('edit-category').value;
-        const folder = document.getElementById('edit-folder').value;
+
+        const fd = new FormData();
+        fd.append('id', document.getElementById('edit-id').value);
+        fd.append('title', document.getElementById('edit-title').value);
+        fd.append('category', document.getElementById('edit-category').value);
+        fd.append('folder', document.getElementById('edit-folder').value);
+
+        const artFile = document.getElementById('edit-art').files[0];
+        if (artFile) {
+            fd.append('art', artFile);
+        }
 
         try {
             const res = await fetch('/api/library/update', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, title, category, folder })
+                // headers: { 'Content-Type': 'multipart/form-data' }, // FETCH Auto-sets boundary for FormData! Do NOT set manually.
+                body: fd
             });
             if (res.ok) {
                 closeEditModal();
