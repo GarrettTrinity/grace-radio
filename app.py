@@ -601,8 +601,20 @@ def get_status():
         if current and state['playing']:
             elapsed = now - current['start_time']
             if elapsed < 0: elapsed = 0
-        
-        # Helper for queue preview (Top 10)
+        # Calculate elapsed
+        elapsed = 0
+        if current and state['playing']:
+            elapsed = now - current['start_time']
+            if elapsed < 0: elapsed = 0
+            
+        # Check if user voted on this track
+        user_vote = None
+        if current and lid:
+            # Find vote by this listener for this track
+            # Performance: Search list (OK for now, optimize with dict later if needed)
+            v = next((x for x in state['votes'] if x['track_id'] == str(current['id']) and x.get('listener_id') == lid), None)
+            if v:
+                user_vote = v['vote']
         queue_preview = []
         for q_id in state['queue'][:10]:
             # Find in library
@@ -618,6 +630,7 @@ def get_status():
             "elapsed": elapsed,
             "listeners": get_active_listeners(),
             "queue": queue_preview,
+            "user_vote": user_vote,
             "server_time": now
         })
 
@@ -830,6 +843,19 @@ def vote_track():
     if vote_type not in ['like', 'dislike']:
         return jsonify({"error": "Invalid vote type"}), 400
 
+@app.route('/api/vote', methods=['POST'])
+def vote_track():
+    data = request.json
+    track_id = str(data.get('id'))
+    vote_type = data.get('vote') # 'like' or 'dislike'
+    listener_id = request.headers.get('X-Listener-ID')
+    
+    if not listener_id:
+        return jsonify({"error": "No Listener ID"}), 400
+    
+    if vote_type not in ['like', 'dislike']:
+        return jsonify({"error": "Invalid vote type"}), 400
+
     now = time.time()
     
     with state_lock:
@@ -837,12 +863,24 @@ def vote_track():
         cutoff = now - (90 * 24 * 60 * 60)
         state['votes'] = [v for v in state['votes'] if v['timestamp'] > cutoff]
         
-        # Add new vote
-        state['votes'].append({
-            "track_id": track_id,
-            "vote": vote_type,
-            "timestamp": now
-        })
+        # Check for existing vote
+        existing = next((v for v in state['votes'] if v['track_id'] == track_id and v.get('listener_id') == listener_id), None)
+        
+        if existing:
+            # If same vote, do we toggle off? Or just update timestamp?
+            # User request: "misclick like and then switch to dislike... let the counters reflect that"
+            # So just overwrite.
+            existing['vote'] = vote_type
+            existing['timestamp'] = now
+        else:
+            # Add new vote
+            state['votes'].append({
+                "track_id": track_id,
+                "listener_id": listener_id,
+                "vote": vote_type,
+                "timestamp": now
+            })
+            
         save_votes()
         
     return jsonify({"status": "ok"})

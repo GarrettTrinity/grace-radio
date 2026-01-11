@@ -146,7 +146,7 @@ async function updateStatus() {
         const lc = document.getElementById('listener-count');
         if (lc) lc.innerText = listeners;
 
-        updatePlayerUI(state, queueList);
+        updatePlayerUI(state, queueList, data.user_vote);
         if (state) updateMediaSession(state);
 
         if (state && data.playing) {
@@ -166,7 +166,7 @@ async function updateStatus() {
     }
 }
 
-function updatePlayerUI(state, queueList) {
+function updatePlayerUI(state, queueList, userVote) {
     const title = document.getElementById('current-title');
     const category = document.getElementById('current-category');
     const progressBar = document.getElementById('progress-bar');
@@ -180,9 +180,44 @@ function updatePlayerUI(state, queueList) {
         category.innerText = "OFFLINE";
         progressBar.style.width = '0%';
         initials.innerText = "♫";
+        // Reset votes
+        document.querySelectorAll('.vote-btn').forEach(b => {
+            b.classList.remove('active');
+            b.disabled = false;
+            b.innerHTML = b.getAttribute('data-original-text') || b.innerHTML;
+        });
     } else {
         title.innerText = state.title;
         category.innerText = state.category;
+
+        // Update Vote Buttons
+        const likeBtn = document.querySelector('button[onclick="sendVote(\'like\')"]');
+        const dislikeBtn = document.querySelector('button[onclick="sendVote(\'dislike\')"]');
+
+        // Store original text if not saved
+        if (likeBtn && !likeBtn.getAttribute('data-original-text')) likeBtn.setAttribute('data-original-text', likeBtn.innerHTML);
+        if (dislikeBtn && !dislikeBtn.getAttribute('data-original-text')) dislikeBtn.setAttribute('data-original-text', dislikeBtn.innerHTML);
+
+        if (likeBtn && dislikeBtn) {
+            // Reset styles
+            likeBtn.style.background = '';
+            likeBtn.style.color = '';
+            dislikeBtn.style.background = '';
+            dislikeBtn.style.color = '';
+            likeBtn.innerHTML = likeBtn.getAttribute('data-original-text');
+            dislikeBtn.innerHTML = dislikeBtn.getAttribute('data-original-text');
+
+            if (userVote === 'like') {
+                likeBtn.style.background = 'var(--accent-secondary)'; // Teal
+                likeBtn.style.color = '#000';
+                likeBtn.innerHTML = '👍 Liked';
+            } else if (userVote === 'dislike') {
+                dislikeBtn.style.background = '#ff4444';
+                dislikeBtn.style.color = '#fff';
+                dislikeBtn.innerHTML = '👎 Disliked';
+            }
+        }
+
 
         // Update Art (Mock)
         initials.innerText = state.category === 'Music' ? '♫' : (state.category === 'Sermon' ? '✝' : '📢');
@@ -837,49 +872,75 @@ async function sendVote(type) {
         return;
     }
 
-    // UI Feedback
-    const btn = event.currentTarget; // The specific button clicked
-    const originalText = btn.innerHTML;
-    // Simple toggle feedback
-    btn.innerHTML = type === 'like' ? '👍 Saved' : '👎 Saved';
-    btn.disabled = true;
+    // UI Feedback is now handled via state update from server
+    // But we can show a spinner?
 
     try {
         await fetch('/api/vote', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Listener-ID': getListenerId()
+            },
             body: JSON.stringify({
                 id: currentMediaId,
                 vote: type
             })
         });
 
-        // Brief timeout to reset
-        setTimeout(() => {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }, 2000);
+        // Let the next status tick update the UI (or force one)
+        updateStatus();
 
     } catch (e) {
         console.error(e);
-        btn.innerText = "Error";
     }
 }
 
-async function fetchStats() {
+let statsSort = 'score'; // score, likes, dislikes, title, category
+
+async function fetchStats(sortBy) {
+    if (sortBy) statsSort = sortBy;
+
     const table = document.getElementById('stats-list');
     if (!table) return;
+
+    // Add headers if not present specific sort clicks (Simple injection)
+    const thead = document.querySelector('.stats-table thead tr');
+    if (thead && !thead.hasAttribute('sorted-init')) {
+        thead.setAttribute('sorted-init', 'true');
+        thead.innerHTML = `
+            <th onclick="fetchStats('score')" style="cursor:pointer; text-decoration:underline;">Score</th>
+            <th onclick="fetchStats('likes')" style="cursor:pointer; text-decoration:underline;">Likes</th>
+            <th onclick="fetchStats('dislikes')" style="cursor:pointer; text-decoration:underline;">Dislikes</th>
+            <th onclick="fetchStats('title')" style="cursor:pointer; text-decoration:underline;">Title</th>
+            <th onclick="fetchStats('category')" style="cursor:pointer; text-decoration:underline;">Category</th>
+        `;
+    }
 
     table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
 
     try {
         const res = await fetch('/api/stats/votes');
-        const data = await res.json();
+        let data = await res.json();
 
         if (data.length === 0) {
             table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
             return;
         }
+
+        // Client-side Sort
+        data.sort((a, b) => {
+            let valA = a[statsSort];
+            let valB = b[statsSort];
+            if (typeof valA === 'string') {
+                return valA.localeCompare(valB);
+            }
+            // Numbers descending (Flip for title/cat?)
+            if (statsSort === 'title' || statsSort === 'category') {
+                return valA.localeCompare(valB);
+            }
+            return valB - valA; // Descending for numbers
+        });
 
         let html = '';
         data.forEach(item => {
