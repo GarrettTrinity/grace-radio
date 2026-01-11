@@ -45,6 +45,20 @@ function initAudio() {
         decks = [setupDeck('radio-audio'), setupDeck('radio-audio-2')];
         audioCtx.resume();
         audioInitialized = true;
+
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => {
+                const deck = decks[activeDeckIndex];
+                if (deck) {
+                    deck.el.play();
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                }
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                const deck = decks[activeDeckIndex];
+                if (deck) deck.el.pause();
+            });
+        }
     } catch (e) { console.error("Audio Init Error (Refresh page if stuck):", e); }
 }
 
@@ -132,9 +146,11 @@ async function updateStatus() {
         if (lc) lc.innerText = listeners;
 
         updatePlayerUI(state, queueList);
+        if (state) updateMediaSession(state);
 
         if (state && data.playing) {
             state.elapsed = data.elapsed;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             handleAudioSync(state);
         } else {
             // Pause all
@@ -203,6 +219,17 @@ function updatePlayerUI(state, queueList) {
         `).join('');
     } else {
         qList.innerHTML = `<p class="empty-state">Queue is empty. Shuffling playlist.</p>`;
+    }
+}
+
+function updateMediaSession(state) {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: state.title || "Grace Radio",
+            artist: state.category || "Live Broadcast",
+            album: "Grace Radio",
+            artwork: []
+        });
     }
 }
 
