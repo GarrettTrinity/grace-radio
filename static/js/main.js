@@ -74,7 +74,16 @@ function setupDeck(id) {
 
     const gain = audioCtx.createGain();
 
-    source.connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // On Mobile, Web Audio API graph often kills background audio. 
+    // We bypass the graph to ensure native playback reliability.
+    if (!isMobile) {
+        source.connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
+    } else {
+        // Mobile: Direct output (No EQ, No Gain Node usage for crossfade - fallbacks needed)
+        console.log("Mobile detected: Bypassing Web Audio Graph for reliability.");
+    }
 
     // Event Listeners
     el.onplay = () => { isPlaying = true; };
@@ -102,6 +111,23 @@ function setupDeck(id) {
 
     return { el, source, low, mid, high, gain, currentId: null };
 }
+
+// Auto-Init on first interaction
+document.addEventListener('click', function initOnFirstClick() {
+    if (!audioInitialized) {
+        initAudio();
+        // Try to start if we have state
+        if (currentMediaId) syncStream();
+    }
+    document.removeEventListener('click', initOnFirstClick);
+}, { once: true });
+document.addEventListener('touchstart', function initOnFirstTouch() {
+    if (!audioInitialized) {
+        initAudio();
+        if (currentMediaId) syncStream();
+    }
+    document.removeEventListener('touchstart', initOnFirstTouch);
+}, { once: true });
 
 function syncStream() {
     userInteracted = true;
@@ -311,21 +337,33 @@ function handleAudioSync(state) {
 
         // Fade OUT Previous (if playing)
         if (!prevDeck.el.paused) {
-            prevDeck.gain.gain.cancelScheduledValues(now);
-            prevDeck.gain.gain.setValueAtTime(1, now);
-            prevDeck.gain.gain.linearRampToValueAtTime(0, now + fadeDur);
+            if (prevDeck.gain && prevDeck.gain.gain) {
+                // Desktop: Gain Node
+                prevDeck.gain.gain.cancelScheduledValues(now);
+                prevDeck.gain.gain.setValueAtTime(1, now);
+                prevDeck.gain.gain.linearRampToValueAtTime(0, now + fadeDur);
+            } else {
+                // Mobile: No Gain Node
+            }
 
             setTimeout(() => {
                 prevDeck.el.pause();
                 prevDeck.el.src = ""; // Clear buffer
-                prevDeck.gain.gain.value = 1; // Reset for next use
+                if (prevDeck.gain && prevDeck.gain.gain) prevDeck.gain.gain.value = 1; // Reset
             }, fadeDur * 1000 + 100);
         }
 
         // Fade IN Next
-        nextDeck.gain.gain.cancelScheduledValues(now);
-        nextDeck.gain.gain.setValueAtTime(0, now);
-        nextDeck.gain.gain.linearRampToValueAtTime(1, now + fadeDur);
+        if (nextDeck.gain && nextDeck.gain.gain) {
+            // Desktop: Gain Node Crossfade
+            nextDeck.gain.gain.cancelScheduledValues(now);
+            nextDeck.gain.gain.setValueAtTime(0, now);
+            nextDeck.gain.gain.linearRampToValueAtTime(1, now + fadeDur);
+        } else {
+            // Mobile: No Gain Node, just play. Volume is on element.
+            // We can try volume ramping if we want, but simple is better for now.
+            nextDeck.el.volume = 1;
+        }
 
         nextDeck.el.play().catch(e => console.error("Play failed", e));
 
