@@ -984,110 +984,111 @@ if (cookieForm) {
         btn.innerText = "Update Cookies";
         btn.disabled = false;
         e.target.reset();
+    };
+}
 
+async function clearStats() {
+    if (!confirm("Are you sure you want to clear ALL voting data? This cannot be undone.")) return;
+    if (!confirm("Confirm again: This will wipe all ratings from every listener.")) return;
 
-        async function clearStats() {
-            if (!confirm("Are you sure you want to clear ALL voting data? This cannot be undone.")) return;
-            if (!confirm("Confirm again: This will wipe all ratings from every listener.")) return;
+    try {
+        const res = await fetch('/api/stats/clear', { method: 'POST' });
+        if (res.ok) {
+            alert("All stats cleared.");
+            fetchStats();
+            document.querySelectorAll('.vote-btn, .star').forEach(b => b.classList.remove('active'));
+            // Optionally force listener ID reset or specific API to clear their session ref?
+            // The requirement says "They would have to vote their star rating again", which implies the backend cleared it.
+        } else {
+            alert("Failed to clear stats.");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
 
-            try {
-                const res = await fetch('/api/stats/clear', { method: 'POST' });
-                if (res.ok) {
-                    alert("All stats cleared.");
-                    fetchStats();
-                    document.querySelectorAll('.vote-btn, .star').forEach(b => b.classList.remove('active'));
-                    // Optionally force listener ID reset or specific API to clear their session ref?
-                    // The requirement says "They would have to vote their star rating again", which implies the backend cleared it.
-                } else {
-                    alert("Failed to clear stats.");
-                }
-            } catch (e) {
-                console.error(e);
+// --- Voting System (Star Rating) ---
+async function sendVote(rating) {
+    if (!currentMediaId) {
+        alert("Nothing is playing right now!");
+        return;
+    }
+
+    try {
+        await fetch('/api/vote', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Listener-ID': getListenerId()
+            },
+            body: JSON.stringify({
+                id: currentMediaId,
+                rating: rating
+            })
+        });
+
+        // Optimistic UI Update
+        const starContainer = document.getElementById('vote-controls');
+        const stars = starContainer.querySelectorAll('.star');
+        stars.forEach(s => s.classList.remove('active'));
+        stars.forEach(s => {
+            if (parseInt(s.getAttribute('data-value')) <= rating) {
+                s.classList.add('active');
             }
+        });
+        const msg = document.getElementById('vote-msg');
+        if (msg) msg.innerText = "You rated: " + rating + " ★";
+
+        // Background sync
+        updateStatus();
+
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+let statsSort = 'average'; // average, votes, title, category
+
+async function fetchStats(sortBy) {
+    if (sortBy) statsSort = sortBy;
+
+    const table = document.getElementById('stats-list');
+    if (!table) return;
+
+    table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
+
+    try {
+        const res = await fetch('/api/stats/votes');
+        let data = await res.json();
+
+        if (data.length === 0) {
+            table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
+            return;
         }
 
-        // --- Voting System (Star Rating) ---
-        async function sendVote(rating) {
-            if (!currentMediaId) {
-                alert("Nothing is playing right now!");
-                return;
+        // Client-side Sort
+        data.sort((a, b) => {
+            let valA = a[statsSort];
+            let valB = b[statsSort];
+            if (typeof valA === 'string') {
+                return valA.localeCompare(valB);
             }
-
-            try {
-                await fetch('/api/vote', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Listener-ID': getListenerId()
-                    },
-                    body: JSON.stringify({
-                        id: currentMediaId,
-                        rating: rating
-                    })
-                });
-
-                // Optimistic UI Update
-                const starContainer = document.getElementById('vote-controls');
-                const stars = starContainer.querySelectorAll('.star');
-                stars.forEach(s => s.classList.remove('active'));
-                stars.forEach(s => {
-                    if (parseInt(s.getAttribute('data-value')) <= rating) {
-                        s.classList.add('active');
-                    }
-                });
-                const msg = document.getElementById('vote-msg');
-                if (msg) msg.innerText = "You rated: " + rating + " ★";
-
-                // Background sync
-                updateStatus();
-
-            } catch (e) {
-                console.error(e);
+            if (statsSort === 'title' || statsSort === 'category') {
+                return valA.localeCompare(valB);
             }
-        }
+            return valB - valA; // Descending for numbers
+        });
 
-        let statsSort = 'average'; // average, votes, title, category
+        let html = '';
+        data.forEach(item => {
+            // Color code average
+            let color = '#888';
+            if (item.average >= 4.5) color = '#00ffc8';
+            else if (item.average >= 3.5) color = '#aaff00';
+            else if (item.average >= 2.5) color = '#ffda00';
+            else if (item.average < 2.5) color = '#ff4444';
 
-        async function fetchStats(sortBy) {
-            if (sortBy) statsSort = sortBy;
-
-            const table = document.getElementById('stats-list');
-            if (!table) return;
-
-            table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
-
-            try {
-                const res = await fetch('/api/stats/votes');
-                let data = await res.json();
-
-                if (data.length === 0) {
-                    table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
-                    return;
-                }
-
-                // Client-side Sort
-                data.sort((a, b) => {
-                    let valA = a[statsSort];
-                    let valB = b[statsSort];
-                    if (typeof valA === 'string') {
-                        return valA.localeCompare(valB);
-                    }
-                    if (statsSort === 'title' || statsSort === 'category') {
-                        return valA.localeCompare(valB);
-                    }
-                    return valB - valA; // Descending for numbers
-                });
-
-                let html = '';
-                data.forEach(item => {
-                    // Color code average
-                    let color = '#888';
-                    if (item.average >= 4.5) color = '#00ffc8';
-                    else if (item.average >= 3.5) color = '#aaff00';
-                    else if (item.average >= 2.5) color = '#ffda00';
-                    else if (item.average < 2.5) color = '#ff4444';
-
-                    html += `
+            html += `
                 <tr>
                     <td>${item.title}</td>
                     <td><span class="badge" style="font-size:0.8em; padding:2px 6px; background:#444; border-radius:4px;">${item.category}</span></td>
@@ -1100,10 +1101,10 @@ if (cookieForm) {
                     <td style="font-weight:bold; font-size:1.1rem; color:${color};">${item.average} ★</td>
                 </tr>
             `;
-                });
-                table.innerHTML = html;
+        });
+        table.innerHTML = html;
 
-            } catch (e) {
-                table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
-            }
-        }
+    } catch (e) {
+        table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
+    }
+}
