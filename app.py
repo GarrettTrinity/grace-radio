@@ -95,6 +95,25 @@ def load_data():
                 state['schedule'] = data.get('schedule', [])
                 loaded_from_disk = True
                 
+                # Cleanup Duplicates (Root vs Folder)
+                clean_lib = []
+                folder_basenames = {os.path.basename(x['filename']) for x in state['library'] if '/' in x['filename'].replace('\\', '/')}
+                
+                removed_dupes = 0
+                for item in state['library']:
+                    bn = os.path.basename(item['filename'])
+                    is_root = '/' not in item['filename'].replace('\\', '/')
+                    # If this is a root item, and we have a version in a folder, drop the root one
+                    if is_root and bn in folder_basenames:
+                        removed_dupes += 1
+                        continue
+                    clean_lib.append(item)
+                
+                if removed_dupes > 0:
+                    print(f"Auto-cleaned {removed_dupes} duplicate root items.")
+                    state['library'] = clean_lib
+                    save_data() # Persist cleanup
+
                 # Metadata Debug
                 stat = os.stat(DATA_FILE)
                 mtime = time.ctime(stat.st_mtime)
@@ -116,7 +135,8 @@ def load_data():
             if allowed_file(filename):
                 # Check if already in library (by filename)
                 # IMPORTANT: Use string comparison
-                if any(m['filename'] == filename for m in state['library']):
+                # Check if already in library (by filename or basename)
+                if any(os.path.basename(m['filename']) == filename for m in state['library']):
                     continue
                     
                 filepath = os.path.join(local_static, filename)
