@@ -51,15 +51,17 @@
                         <h2 id="current-title">Waiting for broadcast...</h2>
                         <p id="current-category" class="category-badge">Offline</p>
 
-                        <!-- Vote Buttons -->
-                        <div class="vote-controls" id="vote-controls"
-                            style="margin-top:10px; display:flex; gap:15px; justify-content:center;">
-                            <button class="vote-btn" onclick="sendVote('like')" title="I like this">
-                                👍 <span class="vote-label">Like</span>
-                            </button>
-                            <button class="vote-btn" onclick="sendVote('dislike')" title="I dislike this">
-                                👎 <span class="vote-label">Dislike</span>
-                            </button>
+                        <!-- Star Rating -->
+                        <div class="star-rating-container" id="vote-controls">
+                            <!-- Stars are reversed in CSS for hover effects commonly -->
+                            <div class="stars">
+                                <span class="star" onclick="sendVote(5)" data-value="5">★</span>
+                                <span class="star" onclick="sendVote(4)" data-value="4">★</span>
+                                <span class="star" onclick="sendVote(3)" data-value="3">★</span>
+                                <span class="star" onclick="sendVote(2)" data-value="2">★</span>
+                                <span class="star" onclick="sendVote(1)" data-value="1">★</span>
+                            </div>
+                            <p class="vote-feedback" id="vote-msg">Rate this track</p>
                         </div>
 
                         <div class="progress-container">
@@ -183,12 +185,11 @@
                 <div style="overflow-x:auto;">
                     <table class="stats-table">
                         <thead>
-                            <tr>
-                                <th>Score</th>
-                                <th>Likes</th>
-                                <th>Dislikes</th>
-                                <th>Title</th>
-                                <th>Category</th>
+                            <tr sorted-init="true">
+                                <th onclick="fetchStats('average')">Avg Rating</th>
+                                <th onclick="fetchStats('votes')">Total Votes</th>
+                                <th onclick="fetchStats('title')">Title</th>
+                                <th onclick="fetchStats('category')">Category</th>
                             </tr>
                         </thead>
                         <tbody id="stats-list">

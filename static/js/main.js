@@ -190,31 +190,35 @@ function updatePlayerUI(state, queueList, userVote) {
         title.innerText = state.title;
         category.innerText = state.category;
 
-        // Update Vote Buttons
-        const likeBtn = document.querySelector('button[onclick="sendVote(\'like\')"]');
-        const dislikeBtn = document.querySelector('button[onclick="sendVote(\'dislike\')"]');
+        // Update Star Rating
+        const starContainer = document.getElementById('vote-controls');
+        if (starContainer) {
+            const stars = starContainer.querySelectorAll('.star');
+            const msg = document.getElementById('vote-msg');
 
-        // Store original text if not saved
-        if (likeBtn && !likeBtn.getAttribute('data-original-text')) likeBtn.setAttribute('data-original-text', likeBtn.innerHTML);
-        if (dislikeBtn && !dislikeBtn.getAttribute('data-original-text')) dislikeBtn.setAttribute('data-original-text', dislikeBtn.innerHTML);
+            // Reset
+            stars.forEach(s => s.classList.remove('active'));
+            if (msg) msg.innerText = "Rate this track";
 
-        if (likeBtn && dislikeBtn) {
-            // Reset styles
-            likeBtn.style.background = '';
-            likeBtn.style.color = '';
-            dislikeBtn.style.background = '';
-            dislikeBtn.style.color = '';
-            likeBtn.innerHTML = likeBtn.getAttribute('data-original-text');
-            dislikeBtn.innerHTML = dislikeBtn.getAttribute('data-original-text');
+            if (userVote) {
+                // Highlight stars up to vote
+                // DOM is reversed (5,4,3,2,1) so we need to be careful OR querySelectorAll returns them in source order (5..1)
+                // Actually source order is 5,4,3,2,1.
+                // If I voted 4: I want 4,3,2,1 to be active.
+                // Wait, visually left is 1?
+                // CSS: flex-direction: row-reverse.
+                // HTML: 5 4 3 2 1
+                // Visual: 1 2 3 4 5
+                // So if I click Visual 4 (Source 4), I want Visual 1,2,3,4 highlighted.
+                // Those are Source 1,2,3,4.
 
-            if (userVote === 'like') {
-                likeBtn.style.background = 'var(--accent-secondary)'; // Teal
-                likeBtn.style.color = '#000';
-                likeBtn.innerHTML = '👍 Liked';
-            } else if (userVote === 'dislike') {
-                dislikeBtn.style.background = '#ff4444';
-                dislikeBtn.style.color = '#fff';
-                dislikeBtn.innerHTML = '👎 Disliked';
+                // Let's just use data-value
+                stars.forEach(s => {
+                    if (parseInt(s.getAttribute('data-value')) <= userVote) {
+                        s.classList.add('active');
+                    }
+                });
+                if (msg) msg.innerText = "You rated: " + userVote + " ★";
             }
         }
 
@@ -865,15 +869,12 @@ if (cookieForm) {
     };
 }
 
-// --- Voting System ---
-async function sendVote(type) {
+// --- Voting System (Star Rating) ---
+async function sendVote(rating) {
     if (!currentMediaId) {
         alert("Nothing is playing right now!");
         return;
     }
-
-    // UI Feedback is now handled via state update from server
-    // But we can show a spinner?
 
     try {
         await fetch('/api/vote', {
@@ -884,11 +885,23 @@ async function sendVote(type) {
             },
             body: JSON.stringify({
                 id: currentMediaId,
-                vote: type
+                rating: rating
             })
         });
 
-        // Let the next status tick update the UI (or force one)
+        // Optimistic UI Update
+        const starContainer = document.getElementById('vote-controls');
+        const stars = starContainer.querySelectorAll('.star');
+        stars.forEach(s => s.classList.remove('active'));
+        stars.forEach(s => {
+            if (parseInt(s.getAttribute('data-value')) <= rating) {
+                s.classList.add('active');
+            }
+        });
+        const msg = document.getElementById('vote-msg');
+        if (msg) msg.innerText = "You rated: " + rating + " ★";
+
+        // Background sync
         updateStatus();
 
     } catch (e) {
@@ -896,26 +909,13 @@ async function sendVote(type) {
     }
 }
 
-let statsSort = 'score'; // score, likes, dislikes, title, category
+let statsSort = 'average'; // average, votes, title, category
 
 async function fetchStats(sortBy) {
     if (sortBy) statsSort = sortBy;
 
     const table = document.getElementById('stats-list');
     if (!table) return;
-
-    // Add headers if not present specific sort clicks (Simple injection)
-    const thead = document.querySelector('.stats-table thead tr');
-    if (thead && !thead.hasAttribute('sorted-init')) {
-        thead.setAttribute('sorted-init', 'true');
-        thead.innerHTML = `
-            <th onclick="fetchStats('score')" style="cursor:pointer; text-decoration:underline;">Score</th>
-            <th onclick="fetchStats('likes')" style="cursor:pointer; text-decoration:underline;">Likes</th>
-            <th onclick="fetchStats('dislikes')" style="cursor:pointer; text-decoration:underline;">Dislikes</th>
-            <th onclick="fetchStats('title')" style="cursor:pointer; text-decoration:underline;">Title</th>
-            <th onclick="fetchStats('category')" style="cursor:pointer; text-decoration:underline;">Category</th>
-        `;
-    }
 
     table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
 
@@ -935,7 +935,6 @@ async function fetchStats(sortBy) {
             if (typeof valA === 'string') {
                 return valA.localeCompare(valB);
             }
-            // Numbers descending (Flip for title/cat?)
             if (statsSort === 'title' || statsSort === 'category') {
                 return valA.localeCompare(valB);
             }
@@ -944,12 +943,17 @@ async function fetchStats(sortBy) {
 
         let html = '';
         data.forEach(item => {
-            const scoreClass = item.score > 0 ? 'score-pos' : (item.score < 0 ? 'score-neg' : 'score-neu');
+            // Color code average
+            let color = '#888';
+            if (item.average >= 4.5) color = '#00ffc8';
+            else if (item.average >= 3.5) color = '#aaff00';
+            else if (item.average >= 2.5) color = '#ffda00';
+            else if (item.average < 2.5) color = '#ff4444';
+
             html += `
                 <tr>
-                    <td class="${scoreClass}" style="font-weight:bold; font-size:1.1rem;">${item.score > 0 ? '+' : ''}${item.score}</td>
-                    <td style="color:#0f0;">${item.likes}</td>
-                    <td style="color:#f00;">${item.dislikes}</td>
+                    <td style="font-weight:bold; font-size:1.1rem; color:${color};">${item.average} ★</td>
+                    <td>${item.votes}</td>
                     <td>${item.title}</td>
                     <td><span class="badge" style="font-size:0.8em; padding:2px 6px; background:#444; border-radius:4px;">${item.category}</span></td>
                 </tr>

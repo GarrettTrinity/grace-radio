@@ -522,24 +522,44 @@ body {
 }
 
 /* Stats & Voting */
-.vote-btn {
-    background: var(--glass);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-family: var(--font-family);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: 0.2s;
+/* Star Rating */
+.star-rating-container {
+    text-align: center;
+    margin-top: 15px;
 }
 
-.vote-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-main);
-    border-color: var(--text-muted);
+.stars {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-direction: row-reverse;
+    /* Hover trick */
+}
+
+.star {
+    font-size: 2rem;
+    color: #444;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+/* Hover Effects (using row-reverse: hovering a star highlights it and siblings AFTER it in DOM, which are VISUALLY BEFORE it) */
+.stars .star:hover,
+.stars .star:hover~.star {
+    color: #ffda00;
+    /* Gold */
+}
+
+/* Selected State (class applied by JS) */
+.star.active {
+    color: #ffda00;
+}
+
+.vote-feedback {
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: #aaa;
+    min-height: 1.2em;
 }
 
 .stats-table {

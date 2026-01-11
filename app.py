@@ -614,7 +614,11 @@ def get_status():
             # Performance: Search list (OK for now, optimize with dict later if needed)
             v = next((x for x in state['votes'] if x['track_id'] == str(current['id']) and x.get('listener_id') == lid), None)
             if v:
-                user_vote = v['vote']
+                user_vote = v.get('rating')
+                # Compat
+                if user_vote is None:
+                    if v.get('vote') == 'like': user_vote = 5
+                    elif v.get('vote') == 'dislike': user_vote = 1
         queue_preview = []
         for q_id in state['queue'][:10]:
             # Find in library
@@ -840,14 +844,24 @@ def repair_library():
 def vote_track():
     data = request.json
     track_id = str(data.get('id'))
-    vote_type = data.get('vote') # 'like' or 'dislike'
+    rating = data.get('rating') # 1-5 integer
+    
+    # Backward compat: if 'vote' is sent, map it
+    if 'vote' in data and rating is None:
+        v = data.get('vote')
+        if v == 'like': rating = 5
+        elif v == 'dislike': rating = 1
+
     listener_id = request.headers.get('X-Listener-ID')
     
     if not listener_id:
         return jsonify({"error": "No Listener ID"}), 400
     
-    if vote_type not in ['like', 'dislike']:
-        return jsonify({"error": "Invalid vote type"}), 400
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5: raise ValueError()
+    except:
+        return jsonify({"error": "Invalid rating (1-5)"}), 400
 
     now = time.time()
     
@@ -860,17 +874,16 @@ def vote_track():
         existing = next((v for v in state['votes'] if v['track_id'] == track_id and v.get('listener_id') == listener_id), None)
         
         if existing:
-            # If same vote, do we toggle off? Or just update timestamp?
-            # User request: "misclick like and then switch to dislike... let the counters reflect that"
-            # So just overwrite.
-            existing['vote'] = vote_type
+            existing['rating'] = rating
             existing['timestamp'] = now
+            # Clear legacy field if exists
+            if 'vote' in existing: del existing['vote']
         else:
             # Add new vote
             state['votes'].append({
                 "track_id": track_id,
                 "listener_id": listener_id,
-                "vote": vote_type,
+                "rating": rating,
                 "timestamp": now
             })
             
@@ -880,45 +893,52 @@ def vote_track():
 
 @app.route('/api/stats/votes')
 def get_vote_stats():
-    # Admin only (technically) - we will trust the UI hides it, 
-    # but we can check if needed. Keeping it open for simplicity as requested.
+    # Admin only
     
     # Aggregate
-    stats = {} # {track_id: {likes: 0, dislikes: 0}}
+    # {track_id: {total_score: 0, count: 0}}
+    stats = {} 
     
     with state_lock:
         library_map = {str(item['id']): item for item in state['library']}
         
         for v in state['votes']:
             tid = v['track_id']
-            if tid not in stats:
-                stats[tid] = {"likes": 0, "dislikes": 0}
             
-            if v['vote'] == 'like':
-                stats[tid]['likes'] += 1
-            elif v['vote'] == 'dislike':
-                stats[tid]['dislikes'] += 1
+            # Normalize rating
+            r = v.get('rating')
+            if r is None:
+                # Legacy fallback
+                legacy = v.get('vote')
+                if legacy == 'like': r = 5
+                elif legacy == 'dislike': r = 1
+                else: continue # Skip invalid
+            
+            if tid not in stats:
+                stats[tid] = {"total": 0, "count": 0}
+            
+            stats[tid]['total'] += r
+            stats[tid]['count'] += 1
         
         # Format for UI
         result = []
-        for tid, counts in stats.items():
+        for tid, data in stats.items():
             item = library_map.get(tid)
             title = item['title'] if item else "Unknown Track"
             category = item['category'] if item else "Unknown"
             
-            score = counts['likes'] - counts['dislikes']
+            avg = data['total'] / data['count'] if data['count'] > 0 else 0
             
             result.append({
                 "id": tid,
                 "title": title,
                 "category": category,
-                "likes": counts['likes'],
-                "dislikes": counts['dislikes'],
-                "score": score
+                "average": round(avg, 1),
+                "votes": data['count']
             })
             
-        # Sort by Score Descending
-        result.sort(key=lambda x: x['score'], reverse=True)
+        # Sort by Average Descending
+        result.sort(key=lambda x: x['average'], reverse=True)
         
     return jsonify(result)
 
