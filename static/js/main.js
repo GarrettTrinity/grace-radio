@@ -950,6 +950,10 @@ if (editForm) {
             fd.append('art', artFile);
         }
 
+        const btn = editForm.querySelector('button[type="submit"]');
+        btn.innerText = "Saving...";
+        btn.disabled = true;
+
         try {
             const res = await fetch('/api/library/update', {
                 method: 'POST',
@@ -964,7 +968,13 @@ if (editForm) {
                 const text = await res.json();
                 alert("Update failed: " + (text.error || 'Unknown'));
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            alert("Error: " + e);
+        } finally {
+            btn.innerText = "Save Changes";
+            btn.disabled = false;
+        }
     };
 }
 
