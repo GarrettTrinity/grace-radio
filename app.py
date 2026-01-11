@@ -834,14 +834,7 @@ def repair_library():
         
     return jsonify({"processed": len(state['library']), "fixed": fixed})
 
-@app.route('/api/vote', methods=['POST'])
-def vote_track():
-    data = request.json
-    track_id = str(data.get('id'))
-    vote_type = data.get('vote') # 'like' or 'dislike'
-    
-    if vote_type not in ['like', 'dislike']:
-        return jsonify({"error": "Invalid vote type"}), 400
+
 
 @app.route('/api/vote', methods=['POST'])
 def vote_track():
