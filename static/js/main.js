@@ -95,6 +95,13 @@ function setupDeck(id) {
     };
     el.onerror = (e) => console.error("Deck Error", e);
 
+    // Mobile Chain Fix: When one ends, immediately try to sync next
+    el.onended = () => {
+        console.log("Track Ended. Force Sync.");
+        currentMediaId = null; // Force refresh detection
+        updateStatus(); // Immediate call
+    };
+
     el.ontimeupdate = () => {
         if (!decks.length) return;
         if (decks[activeDeckIndex].el !== el) return; // Only update UI for active deck
@@ -248,6 +255,25 @@ function updatePlayerUI(state, queueList, userVote) {
     } else {
         title.innerText = state.title;
         category.innerText = state.category;
+
+        // Ensure Button State matches Reality (Logic Fix)
+        const btn = document.getElementById('sync-btn');
+        const isPlayingAudio = decks.some(d => !d.el.paused);
+        if (btn) {
+            if (isPlayingAudio) {
+                if (btn.innerText !== "■ Stop") {
+                    btn.innerText = "■ Stop";
+                    btn.classList.remove('primary');
+                    btn.style.background = '#ff4444';
+                }
+            } else {
+                if (btn.innerText !== "▶ Play") {
+                    btn.innerText = "▶ Play";
+                    btn.classList.add('primary');
+                    btn.style.background = '';
+                }
+            }
+        }
 
         // Update Star Rating
         const starContainer = document.getElementById('vote-controls');
