@@ -225,8 +225,10 @@ async function updateStatus() {
 
         if (state && data.playing) {
             state.elapsed = data.elapsed;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            handleAudioSync(state);
+            if (!userManuallyStopped) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                handleAudioSync(state);
+            }
         } else {
             // Pause all
             if (decks.length) decks.forEach(d => d.el.pause());
@@ -382,6 +384,7 @@ async function removeFromQueue(id) {
 }
 
 function handleAudioSync(state) {
+    if (userManuallyStopped) return; // Block auto-play if user stopped
     if (!userInteracted || !decks.length) return;
 
     // Check for Track Change
