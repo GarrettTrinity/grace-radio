@@ -91,7 +91,8 @@
                     <button class="control-btn" id="mute-btn" onclick="toggleMute()">Mute</button>
                     <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1"
                         onchange="setVolume(this.value)">
-                    <button class="control-btn primary" id="sync-btn" onclick="syncStream()">Sync Stream</button>
+                    <button class="control-btn primary" id="sync-btn" onclick="togglePlayStop()"
+                        title="Start/Stop Playback">▶ Play</button>
                     {% if is_admin %}
                     <br>
                     <div class="admin-toolbar"
@@ -186,10 +187,14 @@
                     <table class="stats-table">
                         <thead>
                             <tr sorted-init="true">
-                                <th onclick="fetchStats('average')">Avg Rating</th>
-                                <th onclick="fetchStats('votes')">Total Votes</th>
+                                <th onclick="fetchStats('average')">Avg</th>
+                                <th onclick="fetchStats('votes')">Total</th>
+                                <th onclick="fetchStats('stars_5')">5★</th>
+                                <th onclick="fetchStats('stars_4')">4★</th>
+                                <th onclick="fetchStats('stars_3')">3★</th>
+                                <th onclick="fetchStats('stars_2')">2★</th>
+                                <th onclick="fetchStats('stars_1')">1★</th>
                                 <th onclick="fetchStats('title')">Title</th>
-                                <th onclick="fetchStats('category')">Category</th>
                             </tr>
                         </thead>
                         <tbody id="stats-list">

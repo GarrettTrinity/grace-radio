@@ -132,11 +132,41 @@ document.addEventListener('touchstart', function initOnFirstTouch() {
     document.removeEventListener('touchstart', initOnFirstTouch);
 }, { once: true });
 
-function syncStream() {
+function togglePlayStop() {
     userInteracted = true;
-    initAudio();
-    document.getElementById('sync-btn').style.display = 'none';
-    updateStatus();
+    const btn = document.getElementById('sync-btn');
+
+    if (!audioInitialized) {
+        initAudio();
+    }
+
+    // Check if currently playing
+    const isPlayingAudio = decks.some(d => !d.el.paused);
+
+    if (isPlayingAudio) {
+        // Stop
+        decks.forEach(d => {
+            d.el.pause();
+            d.el.src = ""; // Clear buffer to stop streaming
+        });
+        currentMediaId = null; // Clear state
+
+        btn.innerText = "▶ Play";
+        btn.title = "Start Playback";
+        btn.classList.add('primary');
+        btn.style.background = ''; // Revert to default primary
+    } else {
+        // Play
+        updateStatus(); // Will trigger sync
+        btn.innerText = "■ Stop";
+        btn.title = "Stop Playback";
+        btn.classList.remove('primary');
+        btn.style.background = '#ff4444'; // Red for stop
+    }
+}
+// Deprecated but kept for compatibility logic reuse if needed
+function syncStream() {
+    togglePlayStop();
 }
 
 function toggleMute() {

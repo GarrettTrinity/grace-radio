@@ -896,7 +896,7 @@ def get_vote_stats():
     # Admin only
     
     # Aggregate
-    # {track_id: {total_score: 0, count: 0}}
+    # {track_id: {total_score: 0, count: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}}
     stats = {} 
     
     with state_lock:
@@ -915,10 +915,12 @@ def get_vote_stats():
                 else: continue # Skip invalid
             
             if tid not in stats:
-                stats[tid] = {"total": 0, "count": 0}
+                stats[tid] = {"total": 0, "count": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
             
             stats[tid]['total'] += r
             stats[tid]['count'] += 1
+            if str(r) in stats[tid]:
+                stats[tid][str(r)] += 1
         
         # Format for UI
         result = []
@@ -934,7 +936,12 @@ def get_vote_stats():
                 "title": title,
                 "category": category,
                 "average": round(avg, 1),
-                "votes": data['count']
+                "votes": data['count'],
+                "stars_1": data['1'],
+                "stars_2": data['2'],
+                "stars_3": data['3'],
+                "stars_4": data['4'],
+                "stars_5": data['5']
             })
             
         # Sort by Average Descending
