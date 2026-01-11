@@ -1118,6 +1118,8 @@ def update_library_item():
             if 'category' in data: item['category'] = data['category']
             
             # Art Upload
+            if 'art' in request.files:
+                file = request.files['art']
                 if file and file.filename != '':
                     try:
                         # Ensure dir exists
