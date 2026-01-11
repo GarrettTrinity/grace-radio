@@ -32,6 +32,9 @@
                 <button class="menu-btn active" onclick="switchTab('player-view')">Now Playing</button>
                 <button class="menu-btn" onclick="switchTab('library-view')">Media Library</button>
                 <button class="menu-btn" onclick="switchTab('schedule-view')">Schedule</button>
+                {% if is_admin %}
+                <button class="menu-btn" onclick="switchTab('stats-view')">Statistics</button>
+                {% endif %}
             </div>
         </nav>
 
@@ -47,6 +50,17 @@
                     <div class="track-info">
                         <h2 id="current-title">Waiting for broadcast...</h2>
                         <p id="current-category" class="category-badge">Offline</p>
+
+                        <!-- Vote Buttons -->
+                        <div class="vote-controls" id="vote-controls"
+                            style="margin-top:10px; display:flex; gap:15px; justify-content:center;">
+                            <button class="vote-btn" onclick="sendVote('like')" title="I like this">
+                                👍 <span class="vote-label">Like</span>
+                            </button>
+                            <button class="vote-btn" onclick="sendVote('dislike')" title="I dislike this">
+                                👎 <span class="vote-label">Dislike</span>
+                            </button>
+                        </div>
 
                         <div class="progress-container">
                             <div class="progress-bar" id="progress-bar"></div>
@@ -158,6 +172,32 @@
                     <!-- Items injected here -->
                 </div>
             </div>
+
+            <!-- VIEW: STATS (Admin Only) -->
+            {% if is_admin %}
+            <div id="stats-view" class="view">
+                <div class="view-header">
+                    <h2>Listener Trends (Last 90 Days)</h2>
+                    <button class="btn-primary" onclick="fetchStats()">Refresh Data</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Score</th>
+                                <th>Likes</th>
+                                <th>Dislikes</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stats-list">
+                            <!-- Injected JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
         </main>
     </div>

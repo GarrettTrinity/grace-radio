@@ -23,6 +23,7 @@ function switchTab(tabId) {
 
     if (tabId === 'library-view') fetchLibrary();
     if (tabId === 'schedule-view') fetchSchedule();
+    if (tabId === 'stats-view') fetchStats();
 }
 
 // --- Player Logic ---
@@ -827,4 +828,75 @@ if (cookieForm) {
         btn.disabled = false;
         e.target.reset();
     };
+}
+
+// --- Voting System ---
+async function sendVote(type) {
+    if (!currentMediaId) {
+        alert("Nothing is playing right now!");
+        return;
+    }
+
+    // UI Feedback
+    const btn = event.currentTarget; // The specific button clicked
+    const originalText = btn.innerHTML;
+    // Simple toggle feedback
+    btn.innerHTML = type === 'like' ? '👍 Saved' : '👎 Saved';
+    btn.disabled = true;
+
+    try {
+        await fetch('/api/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: currentMediaId,
+                vote: type
+            })
+        });
+
+        // Brief timeout to reset
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 2000);
+
+    } catch (e) {
+        console.error(e);
+        btn.innerText = "Error";
+    }
+}
+
+async function fetchStats() {
+    const table = document.getElementById('stats-list');
+    if (!table) return;
+
+    table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
+
+    try {
+        const res = await fetch('/api/stats/votes');
+        const data = await res.json();
+
+        if (data.length === 0) {
+            table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        data.forEach(item => {
+            const scoreClass = item.score > 0 ? 'score-pos' : (item.score < 0 ? 'score-neg' : 'score-neu');
+            html += `
+                <tr>
+                    <td class="${scoreClass}" style="font-weight:bold; font-size:1.1rem;">${item.score > 0 ? '+' : ''}${item.score}</td>
+                    <td style="color:#0f0;">${item.likes}</td>
+                    <td style="color:#f00;">${item.dislikes}</td>
+                    <td>${item.title}</td>
+                    <td><span class="badge" style="font-size:0.8em; padding:2px 6px; background:#444; border-radius:4px;">${item.category}</span></td>
+                </tr>
+            `;
+        });
+        table.innerHTML = html;
+
+    } catch (e) {
+        table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
+    }
 }

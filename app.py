@@ -53,6 +53,7 @@ else:
 UPLOAD_FOLDER = STORAGE_DIR
 DATA_FILE = os.path.join(STORAGE_DIR, 'data.json')
 STATE_FILE = os.path.join(STORAGE_DIR, 'state.json')
+VOTE_FILE = os.path.join(STORAGE_DIR, 'votes.json')
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -66,6 +67,7 @@ state = {
     "queue": [],          # List of media IDs to play next (User manual queue)
     "schedule": [],       # List of {id, run_at_timestamp, media_id}
     "history": [],        # IDs of played songs
+    "votes": [],          # List of {track_id, timestamp, vote}
     "current_track": None, # { ...media_obj, start_time: timestamp }
     "playing": False
 }
@@ -172,6 +174,15 @@ def load_data():
                 state['queue'] = [str(x) for x in q]
         except: pass
 
+    # 3. Load votes
+    if os.path.exists(VOTE_FILE):
+        try:
+            with open(VOTE_FILE, 'r') as f:
+                state['votes'] = json.load(f)
+        except Exception as e:
+            print(f"Error loading votes: {e}")
+            state['votes'] = []
+
 def save_data():
     # Save persistent data
     try:
@@ -186,6 +197,13 @@ def save_data():
         print(f"saved data to {DATA_FILE}: {len(state['library'])} items")
     except Exception as e:
         print(f"Error saving data: {e}")
+
+def save_votes():
+    try:
+        with open(VOTE_FILE, 'w') as f:
+            json.dump(state['votes'], f)
+    except Exception as e:
+        print(f"Error saving votes: {e}")
 
 def save_state():
     # Save volatile state separate for fast writes
@@ -798,7 +816,80 @@ def repair_library():
                 except Exception as e:
                     print(f"Repair failed for {item['filename']}: {e}")
         
-        if count > 0:
+    if count > 0:
+        save_data()
+        
+    return jsonify({"processed": len(state['library']), "fixed": fixed})
+
+@app.route('/api/vote', methods=['POST'])
+def vote_track():
+    data = request.json
+    track_id = str(data.get('id'))
+    vote_type = data.get('vote') # 'like' or 'dislike'
+    
+    if vote_type not in ['like', 'dislike']:
+        return jsonify({"error": "Invalid vote type"}), 400
+
+    now = time.time()
+    
+    with state_lock:
+        # Retention Policy: Clean old votes (older than 90 days)
+        cutoff = now - (90 * 24 * 60 * 60)
+        state['votes'] = [v for v in state['votes'] if v['timestamp'] > cutoff]
+        
+        # Add new vote
+        state['votes'].append({
+            "track_id": track_id,
+            "vote": vote_type,
+            "timestamp": now
+        })
+        save_votes()
+        
+    return jsonify({"status": "ok"})
+
+@app.route('/api/stats/votes')
+def get_vote_stats():
+    # Admin only (technically) - we will trust the UI hides it, 
+    # but we can check if needed. Keeping it open for simplicity as requested.
+    
+    # Aggregate
+    stats = {} # {track_id: {likes: 0, dislikes: 0}}
+    
+    with state_lock:
+        library_map = {str(item['id']): item for item in state['library']}
+        
+        for v in state['votes']:
+            tid = v['track_id']
+            if tid not in stats:
+                stats[tid] = {"likes": 0, "dislikes": 0}
+            
+            if v['vote'] == 'like':
+                stats[tid]['likes'] += 1
+            elif v['vote'] == 'dislike':
+                stats[tid]['dislikes'] += 1
+        
+        # Format for UI
+        result = []
+        for tid, counts in stats.items():
+            item = library_map.get(tid)
+            title = item['title'] if item else "Unknown Track"
+            category = item['category'] if item else "Unknown"
+            
+            score = counts['likes'] - counts['dislikes']
+            
+            result.append({
+                "id": tid,
+                "title": title,
+                "category": category,
+                "likes": counts['likes'],
+                "dislikes": counts['dislikes'],
+                "score": score
+            })
+            
+        # Sort by Score Descending
+        result.sort(key=lambda x: x['score'], reverse=True)
+        
+    return jsonify(result)        if count > 0:
             save_data()
             
     return jsonify({"status": "repaired", "count": count, "details": fixed})
