@@ -339,31 +339,7 @@ async function saveEQ() {
 }
 
 // Handle Loading Errors (e.g. 404, Format)
-audio.onerror = (e) => {
-    console.error("Audio Error:", audio.error);
-    if (currentMediaId) {
-        console.log("Track failed to load/play. Reporting skip...");
-        // Call the skip API so the server moves on
-        // Prevents getting stuck on a broken file
-        skipTrack();
-    }
-};
 
-// Smooth UI updates from local audio
-audio.ontimeupdate = () => {
-    const dur = audio.duration;
-    const cur = audio.currentTime;
-    if (dur > 0 && isPlaying) {
-        // Update bars locally for smoothness
-        const pct = Math.min(100, (cur / dur) * 100);
-        document.getElementById('progress-bar').style.width = pct + '%';
-        document.getElementById('current-time').innerText = formatTime(cur);
-        document.getElementById('total-time').innerText = formatTime(dur);
-    }
-};
-// When playing starts/pauses, update flag
-audio.onplay = () => { isPlaying = true; };
-audio.onpause = () => { isPlaying = false; };
 
 function formatTime(sec) {
     if (!sec || isNaN(sec)) return "0:00";
