@@ -98,7 +98,10 @@ function setupDeck(id) {
 
     // Mobile Chain Fix: When one ends, immediately try to sync next
     el.onended = () => {
-        console.log("Track Ended. Force Sync.");
+        // Fix: Ignore 'ended' event if this deck is not the active one (e.g. fading out)
+        if (decks[activeDeckIndex] && decks[activeDeckIndex].el !== el) return;
+
+        console.log("Track Ended (Active Deck). Force Sync.");
         currentMediaId = null; // Force refresh detection
         updateStatus(); // Immediate call
     };
