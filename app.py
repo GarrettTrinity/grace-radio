@@ -283,20 +283,38 @@ def radio_loop():
              log_loop("I am a GHOST thread (replaced). Exiting.")
              break
 
-        # 0. Singleton Check - REMOVED (Conflicting with single worker)
-        # We rely on Ghost Thread Check above.
-        
         try:
-             # Just touch heartbeat if we want external monitoring? 
-             # Not needed for logic.
-             pass
-        except: pass
-
-        try:
+            time.sleep(1.0) # Tick
+            now = time.time()
+            
             with state_lock:
-                now = time.time()
+                # --- Queue Maintenance (Inline to ensure execution) ---
+                target_len = 10
+                q_len = len(state['queue'])
+                if q_len < target_len:
+                    needed = target_len - q_len
+                    # Candidates
+                    music = [m for m in state['library'] if m.get('category') == 'Music']
+                    if music:
+                        hist = set(state['history'])
+                        q_set = set(state['queue'])
+                        added_count = 0
+                        for _ in range(needed):
+                            # Try unplayed
+                            cands = [m for m in music if m['id'] not in hist and str(m['id']) not in q_set]
+                            if not cands: cands = [m for m in music if str(m['id']) not in q_set]
+                            if not cands: break
+                            
+                            pick = random.choice(cands)
+                            state['queue'].append(str(pick['id']))
+                            q_set.add(str(pick['id']))
+                            added_count += 1
+                        
+                        if added_count > 0:
+                            save_data()
+                            # log_loop(f"Refilled queue with {added_count} items")
                 
-                # --- HOT RELOAD: Check for disk updates ---
+                # Check for Hot Reload
                 try:
                     if os.path.exists(DATA_FILE):
                         stat = os.stat(DATA_FILE)
