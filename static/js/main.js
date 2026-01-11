@@ -1,6 +1,7 @@
 let currentMediaId = null;
 let isPlaying = false;
 let userInteracted = false;
+let userManuallyStopped = false; // Flag to prevent auto-resync
 let serverTimeOffset = 0; // Local - Server
 
 // --- Navigation ---
@@ -151,24 +152,30 @@ function togglePlayStop() {
     const isPlayingAudio = decks.some(d => !d.el.paused);
 
     if (isPlayingAudio) {
-        // Stop
+        // User wants to STOP
+        userManuallyStopped = true;
         decks.forEach(d => {
             d.el.pause();
-            d.el.src = ""; // Clear buffer to stop streaming
+            d.el.src = ""; // Clear buffer
         });
-        currentMediaId = null; // Clear state
+        currentMediaId = null;
 
+        // Immediate UI Update
         btn.innerText = "▶ Play";
         btn.title = "Start Playback";
         btn.classList.add('primary');
-        btn.style.background = ''; // Revert to default primary
+        btn.style.background = '';
     } else {
-        // Play
-        updateStatus(); // Will trigger sync
+        // User wants to PLAY
+        userManuallyStopped = false; // Reset flag
+
         btn.innerText = "■ Stop";
         btn.title = "Stop Playback";
         btn.classList.remove('primary');
-        btn.style.background = '#ff4444'; // Red for stop
+        btn.style.background = '#ff4444';
+
+        // Trigger sync
+        updateStatus();
     }
 }
 // Deprecated but kept for compatibility logic reuse if needed
@@ -256,22 +263,27 @@ function updatePlayerUI(state, queueList, userVote) {
         title.innerText = state.title;
         category.innerText = state.category;
 
-        // Ensure Button State matches Reality (Logic Fix)
+        // Ensure Button State matches Reality (Logic Fix Refined)
+        // If user manually stopped, DO NOT auto-change to Stop (which looks like Play in code logic if reversed)
+        // Only override if we are NOT manually stopped.
         const btn = document.getElementById('sync-btn');
         const isPlayingAudio = decks.some(d => !d.el.paused);
-        if (btn) {
-            if (isPlayingAudio) {
-                if (btn.innerText !== "■ Stop") {
-                    btn.innerText = "■ Stop";
-                    btn.classList.remove('primary');
-                    btn.style.background = '#ff4444';
-                }
-            } else {
-                if (btn.innerText !== "▶ Play") {
-                    btn.innerText = "▶ Play";
-                    btn.classList.add('primary');
-                    btn.style.background = '';
-                }
+
+        if (btn && !userManuallyStopped) {
+            const btnIsStop = btn.innerText.includes("Stop");
+            // If audio is playing but button says Play -> Fix it to Stop
+            if (isPlayingAudio && !btnIsStop) {
+                btn.innerText = "■ Stop";
+                btn.classList.remove('primary');
+                btn.style.background = '#ff4444';
+            }
+            // If audio is NOT playing but button says Stop -> Fix to Play?
+            // Only if we expected it to be playing?
+            // Actually, if it stopped on its own (buffer underrun?), we might want to show Play.
+            else if (!isPlayingAudio && btnIsStop) {
+                btn.innerText = "▶ Play";
+                btn.classList.add('primary');
+                btn.style.background = '';
             }
         }
 
@@ -972,102 +984,126 @@ if (cookieForm) {
         btn.innerText = "Update Cookies";
         btn.disabled = false;
         e.target.reset();
-    };
-}
 
-// --- Voting System (Star Rating) ---
-async function sendVote(rating) {
-    if (!currentMediaId) {
-        alert("Nothing is playing right now!");
-        return;
-    }
 
-    try {
-        await fetch('/api/vote', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Listener-ID': getListenerId()
-            },
-            body: JSON.stringify({
-                id: currentMediaId,
-                rating: rating
-            })
-        });
+        async function clearStats() {
+            if (!confirm("Are you sure you want to clear ALL voting data? This cannot be undone.")) return;
+            if (!confirm("Confirm again: This will wipe all ratings from every listener.")) return;
 
-        // Optimistic UI Update
-        const starContainer = document.getElementById('vote-controls');
-        const stars = starContainer.querySelectorAll('.star');
-        stars.forEach(s => s.classList.remove('active'));
-        stars.forEach(s => {
-            if (parseInt(s.getAttribute('data-value')) <= rating) {
-                s.classList.add('active');
+            try {
+                const res = await fetch('/api/stats/clear', { method: 'POST' });
+                if (res.ok) {
+                    alert("All stats cleared.");
+                    fetchStats();
+                    document.querySelectorAll('.vote-btn, .star').forEach(b => b.classList.remove('active'));
+                    // Optionally force listener ID reset or specific API to clear their session ref?
+                    // The requirement says "They would have to vote their star rating again", which implies the backend cleared it.
+                } else {
+                    alert("Failed to clear stats.");
+                }
+            } catch (e) {
+                console.error(e);
             }
-        });
-        const msg = document.getElementById('vote-msg');
-        if (msg) msg.innerText = "You rated: " + rating + " ★";
-
-        // Background sync
-        updateStatus();
-
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-let statsSort = 'average'; // average, votes, title, category
-
-async function fetchStats(sortBy) {
-    if (sortBy) statsSort = sortBy;
-
-    const table = document.getElementById('stats-list');
-    if (!table) return;
-
-    table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
-
-    try {
-        const res = await fetch('/api/stats/votes');
-        let data = await res.json();
-
-        if (data.length === 0) {
-            table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
-            return;
         }
 
-        // Client-side Sort
-        data.sort((a, b) => {
-            let valA = a[statsSort];
-            let valB = b[statsSort];
-            if (typeof valA === 'string') {
-                return valA.localeCompare(valB);
+        // --- Voting System (Star Rating) ---
+        async function sendVote(rating) {
+            if (!currentMediaId) {
+                alert("Nothing is playing right now!");
+                return;
             }
-            if (statsSort === 'title' || statsSort === 'category') {
-                return valA.localeCompare(valB);
+
+            try {
+                await fetch('/api/vote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Listener-ID': getListenerId()
+                    },
+                    body: JSON.stringify({
+                        id: currentMediaId,
+                        rating: rating
+                    })
+                });
+
+                // Optimistic UI Update
+                const starContainer = document.getElementById('vote-controls');
+                const stars = starContainer.querySelectorAll('.star');
+                stars.forEach(s => s.classList.remove('active'));
+                stars.forEach(s => {
+                    if (parseInt(s.getAttribute('data-value')) <= rating) {
+                        s.classList.add('active');
+                    }
+                });
+                const msg = document.getElementById('vote-msg');
+                if (msg) msg.innerText = "You rated: " + rating + " ★";
+
+                // Background sync
+                updateStatus();
+
+            } catch (e) {
+                console.error(e);
             }
-            return valB - valA; // Descending for numbers
-        });
+        }
 
-        let html = '';
-        data.forEach(item => {
-            // Color code average
-            let color = '#888';
-            if (item.average >= 4.5) color = '#00ffc8';
-            else if (item.average >= 3.5) color = '#aaff00';
-            else if (item.average >= 2.5) color = '#ffda00';
-            else if (item.average < 2.5) color = '#ff4444';
+        let statsSort = 'average'; // average, votes, title, category
 
-            html += `
+        async function fetchStats(sortBy) {
+            if (sortBy) statsSort = sortBy;
+
+            const table = document.getElementById('stats-list');
+            if (!table) return;
+
+            table.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>';
+
+            try {
+                const res = await fetch('/api/stats/votes');
+                let data = await res.json();
+
+                if (data.length === 0) {
+                    table.innerHTML = '<tr><td colspan="5" style="text-align:center;">No votes recorded yet.</td></tr>';
+                    return;
+                }
+
+                // Client-side Sort
+                data.sort((a, b) => {
+                    let valA = a[statsSort];
+                    let valB = b[statsSort];
+                    if (typeof valA === 'string') {
+                        return valA.localeCompare(valB);
+                    }
+                    if (statsSort === 'title' || statsSort === 'category') {
+                        return valA.localeCompare(valB);
+                    }
+                    return valB - valA; // Descending for numbers
+                });
+
+                let html = '';
+                data.forEach(item => {
+                    // Color code average
+                    let color = '#888';
+                    if (item.average >= 4.5) color = '#00ffc8';
+                    else if (item.average >= 3.5) color = '#aaff00';
+                    else if (item.average >= 2.5) color = '#ffda00';
+                    else if (item.average < 2.5) color = '#ff4444';
+
+                    html += `
                 <tr>
-                    <td style="font-weight:bold; font-size:1.1rem; color:${color};">${item.average} ★</td>
-                    <td>${item.votes}</td>
                     <td>${item.title}</td>
                     <td><span class="badge" style="font-size:0.8em; padding:2px 6px; background:#444; border-radius:4px;">${item.category}</span></td>
+                    <td style="color:#00ffc8">${item.stars_5 || 0}</td>
+                    <td style="color:#aaff00">${item.stars_4 || 0}</td>
+                    <td style="color:#ffda00">${item.stars_3 || 0}</td>
+                    <td style="color:#ff9900">${item.stars_2 || 0}</td>
+                    <td style="color:#ff4444">${item.stars_1 || 0}</td>
+                    <td style="text-align:center;">${item.votes}</td>
+                    <td style="font-weight:bold; font-size:1.1rem; color:${color};">${item.average} ★</td>
                 </tr>
             `;
-        });
-        table.innerHTML = html;
+                });
+                table.innerHTML = html;
 
-    } catch (e) {
-        table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
-    }
-}
+            } catch (e) {
+                table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
+            }
+        }

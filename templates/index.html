@@ -181,20 +181,25 @@
             <div id="stats-view" class="view">
                 <div class="view-header">
                     <h2>Listener Trends (Last 90 Days)</h2>
-                    <button class="btn-primary" onclick="fetchStats()">Refresh Data</button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-primary" onclick="fetchStats()">Refresh Data</button>
+                        <button class="btn-card" style="background:#ff4444; color:white; border:none;"
+                            onclick="clearStats()">Clear Data</button>
+                    </div>
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="stats-table">
                         <thead>
                             <tr sorted-init="true">
-                                <th onclick="fetchStats('average')">Avg</th>
-                                <th onclick="fetchStats('votes')">Total</th>
+                                <th onclick="fetchStats('title')">Title</th>
+                                <th onclick="fetchStats('category')">Category</th>
                                 <th onclick="fetchStats('stars_5')">5★</th>
                                 <th onclick="fetchStats('stars_4')">4★</th>
                                 <th onclick="fetchStats('stars_3')">3★</th>
                                 <th onclick="fetchStats('stars_2')">2★</th>
                                 <th onclick="fetchStats('stars_1')">1★</th>
-                                <th onclick="fetchStats('title')">Title</th>
+                                <th onclick="fetchStats('votes')">Total</th>
+                                <th onclick="fetchStats('average')">Avg</th>
                             </tr>
                         </thead>
                         <tbody id="stats-list">

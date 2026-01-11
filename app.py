@@ -949,6 +949,14 @@ def get_vote_stats():
         
     return jsonify(result)
 
+@app.route('/api/stats/clear', methods=['POST'])
+def clear_vote_stats():
+    # Admin only (but no auth check for this demo)
+    with state_lock:
+        state['votes'] = []
+        save_votes()
+    return jsonify({"status": "cleared"})
+
 @app.route('/api/upload/cookies', methods=['POST'])
 def upload_cookies():
     try:
