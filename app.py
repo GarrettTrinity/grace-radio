@@ -568,8 +568,11 @@ def admin_dashboard():
 @app.route('/api/status')
 def get_status():
     # Update listener heartbeat
-    if not request.headers.get('User-Agent', '').startswith('uptime'): 
-        update_listeners(request.remote_addr)
+    # Update listener heartbeat
+    # Only count valid clients with Listener ID (Filters bots)
+    lid = request.headers.get('X-Listener-ID')
+    if lid:
+        update_listeners(lid)
 
     with state_lock:
         now = time.time()

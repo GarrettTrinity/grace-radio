@@ -109,9 +109,20 @@ function setVolume(val) {
     if (decks.length) decks.forEach(d => d.el.volume = val);
 }
 
+function getListenerId() {
+    let id = localStorage.getItem('grace_listener_id');
+    if (!id) {
+        id = 'lid-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        localStorage.setItem('grace_listener_id', id);
+    }
+    return id;
+}
+
 async function updateStatus() {
     try {
-        const res = await fetch('/api/status?t=' + Date.now());
+        const res = await fetch('/api/status?t=' + Date.now(), {
+            headers: { 'X-Listener-ID': getListenerId() }
+        });
         const data = await res.json();
         const state = data.current_track;
         const queueList = data.queue || [];
