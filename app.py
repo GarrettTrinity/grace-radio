@@ -1118,20 +1118,29 @@ def update_library_item():
             if 'category' in data: item['category'] = data['category']
             
             # Art Upload
-            if 'art' in request.files:
-                file = request.files['art']
                 if file and file.filename != '':
-                    # Save art with ID
-                    ext = os.path.splitext(file.filename)[1].lower()
-                    if not ext: ext = '.jpg'
-                    art_filename = f"{mid}{ext}"
-                    dest = os.path.join(app.root_path, 'static', 'art', art_filename)
-                    file.save(dest)
-                    item['art'] = f"/static/art/{art_filename}?t={int(time.time())}" # cache bust
-                    
-                    # Propagate to Current Track
-                    if state.get('current_track') and str(state['current_track']['id']) == str(mid):
-                        state['current_track']['art'] = item['art']
+                    try:
+                        # Ensure dir exists
+                        art_dir = os.path.join(app.root_path, 'static', 'art')
+                        if not os.path.exists(art_dir):
+                            os.makedirs(art_dir)
+
+                        # Save art with ID
+                        ext = os.path.splitext(file.filename)[1].lower()
+                        if not ext: ext = '.jpg'
+                        art_filename = f"{mid}{ext}"
+                        dest = os.path.join(art_dir, art_filename)
+                        file.save(dest)
+                        item['art'] = f"/static/art/{art_filename}?t={int(time.time())}" # cache bust
+                        
+                        # Propagate to Current Track
+                        if state.get('current_track') and str(state['current_track']['id']) == str(mid):
+                            state['current_track']['art'] = item['art']
+                    except Exception as e:
+                        print(f"ART UPLOAD ERROR: {e}")
+                        # Don't fail the whole request, just log it? 
+                        # Or return error?
+                        # Let's log and continue, maybe warnings?
 
             if 'eq' in data: 
                 item['eq'] = data['eq'] # Store EQ settings {low, mid, high}

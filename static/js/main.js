@@ -960,13 +960,21 @@ if (editForm) {
                 // headers: { 'Content-Type': 'multipart/form-data' }, // FETCH Auto-sets boundary for FormData! Do NOT set manually.
                 body: fd
             });
+            const rawText = await res.text();
+
             if (res.ok) {
                 closeEditModal();
                 fetchLibrary();
                 // alert("Updated!");
             } else {
-                const text = await res.json();
-                alert("Update failed: " + (text.error || 'Unknown'));
+                let errorMsg = "Unknown Error";
+                try {
+                    const json = JSON.parse(rawText);
+                    errorMsg = json.error || "Unknown Server Error";
+                } catch (e) {
+                    errorMsg = "Server Error (HTML): " + rawText.substring(0, 100);
+                }
+                alert("Update failed: " + errorMsg);
             }
         } catch (e) {
             console.error(e);
