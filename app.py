@@ -889,10 +889,7 @@ def get_vote_stats():
         # Sort by Score Descending
         result.sort(key=lambda x: x['score'], reverse=True)
         
-    return jsonify(result)        if count > 0:
-            save_data()
-            
-    return jsonify({"status": "repaired", "count": count, "details": fixed})
+    return jsonify(result)
 
 @app.route('/api/upload/cookies', methods=['POST'])
 def upload_cookies():
