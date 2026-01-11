@@ -148,12 +148,13 @@ function togglePlayStop() {
         initAudio();
     }
 
-    // Check if currently playing
-    const isPlayingAudio = decks.some(d => !d.el.paused);
+    // Check UI state for intent
+    const isCurrentlyStop = btn.innerText.includes("Stop");
 
-    if (isPlayingAudio) {
+    if (isCurrentlyStop) {
         // User wants to STOP
         userManuallyStopped = true;
+
         decks.forEach(d => {
             d.el.pause();
             d.el.src = ""; // Clear buffer
