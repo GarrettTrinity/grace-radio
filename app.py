@@ -904,7 +904,11 @@ def update_library_item():
         if item:
             if 'title' in data: item['title'] = data['title']
             if 'category' in data: item['category'] = data['category']
-            if 'eq' in data: item['eq'] = data['eq'] # Store EQ settings {low, mid, high}
+            if 'eq' in data: 
+                item['eq'] = data['eq'] # Store EQ settings {low, mid, high}
+                # Propagate to Current Track if active (Immediate Listener Update)
+                if state.get('current_track') and str(state['current_track']['id']) == str(mid):
+                    state['current_track']['eq'] = data['eq']
             
             # Folder Support
             new_folder = data.get('folder') # e.g. "Newsboys" or "" (root)

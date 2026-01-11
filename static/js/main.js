@@ -224,15 +224,7 @@ function handleAudioSync(state) {
         nextDeck.el.src = url;
         nextDeck.el.load();
 
-        // Apply EQ
-        const eq = state.eq || { low: 0, mid: 0, high: 0 };
-        const safeVal = (v) => Math.max(-10, Math.min(10, v || 0));
-        nextDeck.low.gain.value = safeVal(eq.low);
-        nextDeck.mid.gain.value = safeVal(eq.mid);
-        nextDeck.high.gain.value = safeVal(eq.high);
-
         // Setup Playback
-        // Trust server elapsed mostly, but if track is fresh start at 0
         nextDeck.el.currentTime = state.elapsed;
 
         // CROSSFADE LOGIC
@@ -261,12 +253,23 @@ function handleAudioSync(state) {
 
     } else {
         // Drifting check?
-        // simple: if diff > 5s, jump.
         const deck = decks[activeDeckIndex];
         if (deck && !deck.el.paused && Math.abs(deck.el.currentTime - state.elapsed) > 8) {
             console.log("Resyncing time...");
             deck.el.currentTime = state.elapsed;
         }
+    }
+
+    // Apply Live EQ (Always, for listeners)
+    const deck = decks[activeDeckIndex];
+    if (deck) {
+        const eq = state.eq || { low: 0, mid: 0, high: 0 };
+        const safeVal = (v) => Math.max(-10, Math.min(10, v || 0));
+        const now = audioCtx.currentTime;
+        // setTargetAtTime avoids clicks
+        deck.low.gain.setTargetAtTime(safeVal(eq.low), now, 0.2);
+        deck.mid.gain.setTargetAtTime(safeVal(eq.mid), now, 0.2);
+        deck.high.gain.setTargetAtTime(safeVal(eq.high), now, 0.2);
     }
 }
 
