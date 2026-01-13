@@ -7,7 +7,7 @@ import mimetypes
 import yt_dlp
 import tempfile
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, redirect
 from werkzeug.utils import secure_filename
 from mutagen import File as MutagenFile
 
@@ -621,6 +621,17 @@ def debug_logs():
         return "No logs"
     except Exception as e:
         return str(e)
+
+@app.route('/api/stream/current')
+def stream_current():
+    with state_lock:
+        current = state.get('current_track')
+        if current and state.get('playing'):
+            # specific file URL
+            return redirect(f"/static/media/{current['filename']}")
+        else:
+            # Fallback or silent mp3
+            return "Radio Offline", 404
 
 # --- Routes ---
 
