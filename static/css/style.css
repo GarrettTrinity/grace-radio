@@ -1,17 +1,17 @@
 :root {
-    --bg-dark: #050505;
-    --bg-panel: #111111;
-    --bg-card: #1a1a1a;
+    --bg-dark: #1f1f1f;
+    --bg-panel: #262626;
+    --bg-card: #333333;
     --text-main: #ffffff;
-    --text-muted: #888888;
-    --accent: #2c00a6;
-    /* Deep Violet */
-    --accent-bright: #6200ff;
-    /* Bright Neon */
-    --accent-secondary: #00ffc8;
-    /* Teal */
-    --border: #333333;
-    --glass: rgba(255, 255, 255, 0.03);
+    --text-muted: #aaaaaa;
+    --accent: #0033cc;
+    /* Royal Blue */
+    --accent-bright: #0055ff;
+    /* Bright Blue */
+    --accent-secondary: #ffffff;
+    /* White */
+    --border: #444444;
+    --glass: rgba(255, 255, 255, 0.05);
     --font-family: 'Outfit', sans-serif;
 }
 
@@ -129,7 +129,7 @@ body {
 }
 
 .menu-btn.active {
-    background: linear-gradient(90deg, rgba(98, 0, 255, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
+    background: linear-gradient(90deg, rgba(0, 85, 255, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
     color: var(--accent-bright);
     border-left: 3px solid var(--accent-bright);
 }
@@ -140,7 +140,7 @@ body {
     padding: 30px;
     overflow-y: auto;
     position: relative;
-    background: radial-gradient(circle at 10% 20%, rgba(98, 0, 255, 0.05), transparent 25%);
+    background: radial-gradient(circle at 10% 20%, rgba(0, 85, 255, 0.05), transparent 25%);
 }
 
 .view {
