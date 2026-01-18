@@ -436,32 +436,37 @@ function handleAudioSync(state) {
         let url = `/static/media/${state.filename.replace(/\\/g, '/')}`;
         if (url.indexOf('?') === -1) url += '?t=' + Date.now();
 
-        nextDeck.el.src = url;
-        nextDeck.el.load();
-
-        if (nextDeck.preAmp) {
-            // Handle 0 vs undefined
-            nextDeck.preAmp.gain.value = (state.volume !== undefined && state.volume !== null) ? state.volume : 1.0;
-        }
-
         // Logic for Trim
         const trimStart = state.trim_start || 0;
         nextDeck.trimStart = trimStart;
         nextDeck.trimEnd = state.trim_end || state.duration;
 
-        // Setup Playback
-        // Backend calculates elapsed since 'start_time'. 
-        // We must start playback at trimStart + elapsed.
+        // Setup Playback Target
         const targetTime = trimStart + state.elapsed;
+
+        // Fix: Robust Seek Strategy (Immediate + Async)
+        const seekHandler = () => {
+            // Only seek if we are far off (avoid stutter if already there)
+            if (Math.abs(nextDeck.el.currentTime - targetTime) > 0.5) {
+                console.log(`Seek Handler: Jumping to ${targetTime}s`);
+                nextDeck.el.currentTime = targetTime;
+            }
+        };
+
+        // Attach listeners BEFORE setting src to catch all events
+        nextDeck.el.addEventListener('loadedmetadata', seekHandler, { once: true });
+        nextDeck.el.addEventListener('canplay', seekHandler, { once: true });
+
+        // Set Source
+        nextDeck.el.src = url;
+        nextDeck.el.load();
+
+        // Attempt Immediate Seek (for cached files)
         nextDeck.el.currentTime = targetTime;
 
-        // Fix: Enforce seek after metadata loads (some browsers ignore currentTime before load)
-        const seekHandler = () => {
-            console.log(`Force Seek to ${targetTime}s (Trim: ${trimStart}s)`);
-            nextDeck.el.currentTime = targetTime;
-            nextDeck.el.removeEventListener('loadedmetadata', seekHandler);
-        };
-        nextDeck.el.addEventListener('loadedmetadata', seekHandler);
+        if (nextDeck.preAmp) {
+            nextDeck.preAmp.gain.value = (state.volume !== undefined && state.volume !== null) ? state.volume : 1.0;
+        }
 
         // CROSSFADE LOGIC
         const now = audioCtx.currentTime;
