@@ -801,7 +801,7 @@ function renderLibrary(data) {
             buttons = `
                 <button class="btn-card" onclick="queueItem('${item.id}')">Queue Next</button>
                 <button class="btn-card" onclick="openScheduleModal('${item.id}', '${item.title.replace(/'/g, "&apos;")}')">Schedule</button>
-                <button class="btn-card" onclick='openEditModal(${JSON.stringify(item)})'>Edit</button>
+                <button class="btn-card" onclick="openEditModalFromId('${item.id}')">Edit</button>
                 <button class="btn-card" style="color:#ff4444" onclick="deleteItem('${item.id}')">Delete</button>
              `;
         } else {
@@ -1046,6 +1046,13 @@ async function refreshFolderList() {
             dl.innerHTML = folders.map(f => `<option value="${f}">`).join('');
         }
     } catch (e) { }
+}
+
+function openEditModalFromId(id) {
+    // Find item in allMedia global
+    const item = allMedia.find(m => String(m.id) === String(id));
+    if (item) openEditModal(item);
+    else alert("Error: Item not found in memory.");
 }
 
 function openEditModal(item) {

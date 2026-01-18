@@ -682,7 +682,7 @@ def get_status():
         if current:
             lib_item = next((m for m in state['library'] if str(m['id']) == str(current['id'])), None)
             if lib_item:
-                if 'lyrics' not in current and 'lyrics' in lib_item:
+                if not current.get('lyrics') and lib_item.get('lyrics'):
                      current['lyrics'] = lib_item['lyrics']
                 # Sync other props if stale? Optionally.
         
