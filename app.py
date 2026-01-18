@@ -1295,14 +1295,21 @@ def add_to_queue():
             return jsonify({"status": "added"})
     return jsonify({"error": "not found"}), 404
 
+def log_sched(msg):
+    try:
+        with open("schedule_debug.txt", "a") as f:
+            f.write(f"{datetime.now()}: {msg}\n")
+    except: pass
+
 @app.route('/api/schedule/add', methods=['POST'])
 def add_to_schedule():
     data = request.json
     media_id = data.get('id')
-    run_at = data.get('run_at') # Timestamp or ISO string
+    run_at = data.get('run_at') # Timestamp expected
     
-    # Convert ISO to timestamp if needed
-    # Assuming input is timestamp for simplicity or handle ISO
+    log_sched(f"ADD REQUEST: media={media_id}, run_at={run_at} (type {type(run_at)})")
+
+    # Handle numeric/string conversion
     try:
         if isinstance(run_at, str):
              # Try parse ISO
@@ -1311,13 +1318,17 @@ def add_to_schedule():
     except:
         pass
 
+    run_at = float(run_at)
+    log_sched(f"ADD NORMALIZED: {run_at} (Now: {time.time()})")
+
     with state_lock:
         state['schedule'].append({
             "id": str(random.randint(0, 100000)),
             "media_id": media_id,
-            "run_at": float(run_at)
+            "run_at": run_at
         })
         save_data()
+        log_sched(f"Schedule Saved. Count: {len(state['schedule'])}")
     return jsonify({"status": "scheduled"})
 
 @app.route('/api/schedule/list', methods=['GET'])
