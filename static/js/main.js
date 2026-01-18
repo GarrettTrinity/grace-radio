@@ -426,18 +426,14 @@ function handleAudioSync(state) {
 
     // Check for Track Change
     if (currentMediaId !== state.id) {
-        // Load Lyrics
-        currentLyrics = parseLRC(state.lyrics || "");
-        renderLyrics(currentLyrics);
-
-        console.log("Crossfade Switch:", state.title);
-        console.log("New Track Config:", { trim: state.trim_start, vol: state.volume });
+        console.log("Crossfade Switch:", state.title || "Unknown");
         currentMediaId = state.id;
 
-        // Load Lyrics
-        console.log("Lyrics available:", !!state.lyrics);
-        currentLyrics = parseLRC(state.lyrics || "");
-        renderLyrics(currentLyrics);
+        // Load Lyrics (Safe wrapper to preventing blocking playback)
+        try {
+            currentLyrics = parseLRC(state.lyrics || "");
+            renderLyrics(currentLyrics);
+        } catch (e) { console.error("Lyrics Render Failed:", e); }
 
         const prevDeck = decks[activeDeckIndex];
         activeDeckIndex = (activeDeckIndex + 1) % 2;
