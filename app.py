@@ -1174,6 +1174,7 @@ def update_library_item():
                  if 'trim_start' in data: state['current_track']['trim_start'] = item['trim_start']
                  if 'trim_end' in data: state['current_track']['trim_end'] = item['trim_end']
                  if 'lyrics' in data: state['current_track']['lyrics'] = item['lyrics']
+                 save_state() # Persist current_track changes
             
             # Art Upload
             if 'art' in request.files:
