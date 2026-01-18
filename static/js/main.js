@@ -431,8 +431,9 @@ function handleAudioSync(state) {
 
         // Load Lyrics (Safe wrapper to preventing blocking playback)
         try {
-            currentLyrics = parseLRC(state.lyrics || "");
-            renderLyrics(currentLyrics);
+            const raw = state.lyrics || "";
+            currentLyrics = parseLRC(raw);
+            renderLyrics(currentLyrics, raw);
         } catch (e) { console.error("Lyrics Render Failed:", e); }
 
         const prevDeck = decks[activeDeckIndex];
@@ -521,8 +522,9 @@ function handleAudioSync(state) {
                 deck.preAmp.gain.value = state.volume;
             }
             if (state.lyrics !== undefined) {
-                currentLyrics = parseLRC(state.lyrics || "");
-                renderLyrics(currentLyrics);
+                const raw = state.lyrics || "";
+                currentLyrics = parseLRC(raw);
+                renderLyrics(currentLyrics, raw);
             }
         }
 
@@ -1358,11 +1360,19 @@ function parseLRC(text) {
     return result.sort((a, b) => a.time - b.time);
 }
 
-function renderLyrics(lyrics) {
+function renderLyrics(lyrics, rawText = "") {
     const container = document.getElementById('lyrics-container');
     if (!lyrics || lyrics.length === 0) {
-        container.innerHTML = '<p style="color:#666; margin-top:50px;">No synced lyrics available.<br><small>Add them in Edit Track menu (LRC format).</small></p>';
-        document.getElementById('lyrics-title').innerText = "Lyrics (Unsynced)";
+        if (rawText && rawText.trim().length > 0) {
+            // Fallback: Display raw text
+            document.getElementById('lyrics-title').innerText = "Lyrics (Unsynced)";
+            container.innerHTML = rawText.split('\n').map(line =>
+                `<p style="margin:10px 0; color:#aaa;">${line}</p>`
+            ).join('');
+        } else {
+            container.innerHTML = '<p style="color:#666; margin-top:50px;">No synced lyrics available.<br><small>Add them in Edit Track menu (LRC format).</small></p>';
+            document.getElementById('lyrics-title').innerText = "Lyrics (Unsynced)";
+        }
         return;
     }
     document.getElementById('lyrics-title').innerText = "Lyrics";
