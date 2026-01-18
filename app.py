@@ -170,6 +170,10 @@ def load_data():
                 print(f"LOADED {len(state['library'])} items from {DATA_FILE} (Last Mod: {mtime})")
         except Exception as e:
             print(f"ERROR LOADING DATA_FILE {DATA_FILE}: {e}")
+            try:
+                with open("persistence.log", "a") as log:
+                    log.write(f"{datetime.now()} LOAD ERROR: {e}\n")
+            except: pass
             
     # BOOTSTRAP logic...
     # We want to ensure we at least have the bundled music.
@@ -240,7 +244,8 @@ def load_data():
 def save_data():
     # Save persistent data
     try:
-        with open(DATA_FILE, 'w') as f:
+        temp_file = DATA_FILE + ".tmp"
+        with open(temp_file, 'w') as f:
             json.dump({
                 "library": state['library'],
                 "schedule": state['schedule'],
@@ -248,10 +253,17 @@ def save_data():
             }, f, indent=2)
             f.flush()
             os.fsync(f.fileno()) # FORCE WRITE TO DISK
+        
+        # Atomic Replace
+        os.replace(temp_file, DATA_FILE)
             
         print(f"saved data to {DATA_FILE}: {len(state['library'])} items")
     except Exception as e:
         print(f"Error saving data: {e}")
+        try:
+            with open("persistence.log", "a") as log:
+                log.write(f"{datetime.now()} SAVE ERROR: {e}\n")
+        except: pass
 
 def save_votes():
     try:
