@@ -364,7 +364,7 @@ function updatePlayerUI(state, queueList, userVote) {
                 <div style="display:flex; align-items:center;">
                      <span class="badge" style="font-size:0.7em; margin-right:5px;">${item.category}</span>
                      ${(typeof IS_ADMIN !== 'undefined' && IS_ADMIN) ?
-                `<button onclick="removeFromQueue('${item.id}')" style="background:none; border:none; color:#ff4444; cursor:pointer; font-weight:bold; padding:0 5px;">✕</button>`
+                `<button type="button" onclick="removeFromQueue(event, '${item.id}')" style="background:none; border:none; color:#ff4444; cursor:pointer; font-weight:bold; padding:0 5px;" title="Remove">✕</button>`
                 : ''}
                 </div>
             </div>
@@ -385,14 +385,23 @@ function updateMediaSession(state) {
     }
 }
 
-async function removeFromQueue(id) {
+// Make global for inline onclick
+window.removeFromQueue = async function (event, id) {
+    if (event) event.stopPropagation();
+    console.log("Removing queue item:", id);
     if (!confirm("Remove from Up Next?")) return;
-    await fetch('/api/queue/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-    });
-    updateStatus(); // Refresh immediately
+
+    try {
+        await fetch('/api/queue/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        updateStatus(); // Refresh immediately
+    } catch (e) {
+        console.error(e);
+        alert("Failed to remove item.");
+    }
 }
 
 function handleAudioSync(state) {

@@ -1090,8 +1090,10 @@ def run_youtube_download(url, category='Music'):
         print(f"BACKGROUND ERROR: {e}")
 
 # --- Helpers ---
-def ensure_queue_filled():
+def ensure_queue_filled(exclude_ids=None):
     """Auto-fills queue with random music to maintain 10 items"""
+    if exclude_ids is None: exclude_ids = []
+    
     # Strict Shuffle: Only Music
     music_cands = [m for m in state['library'] if m.get('category') == 'Music']
     if not music_cands: return # No music to pick from
@@ -1104,7 +1106,7 @@ def ensure_queue_filled():
     while len(state['queue']) < 10 and attempts < 20:
         attempts += 1
         # Filter candidates
-        cands = [m for m in music_cands if m['id'] not in history_set and str(m['id']) not in state['queue']]
+        cands = [m for m in music_cands if m['id'] not in history_set and str(m['id']) not in state['queue'] and str(m['id']) not in exclude_ids]
         
         if not cands:
              # Relax history if strictly needed, or just pick any music
@@ -1252,7 +1254,7 @@ def remove_from_queue():
     target_id = request.json.get('id')
     with state_lock:
         state['queue'] = [q for q in state['queue'] if str(q) != str(target_id)]
-        ensure_queue_filled()
+        ensure_queue_filled(exclude_ids=[str(target_id)])
         save_state()
     return jsonify({"status": "removed"})
     
