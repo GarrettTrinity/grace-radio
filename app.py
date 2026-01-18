@@ -555,6 +555,9 @@ def radio_loop():
                         state['current_track'] = None
                         state['playing'] = False
                     
+                    # Maintain Queue Depth (Run auto-fill)
+                    ensure_queue_filled()
+
                     # Sync state to disk immediately
                     save_state()
                     save_data() # Save queue/schedule changes too
