@@ -1165,6 +1165,8 @@ def update_library_item():
             if 'trim_end' in data: 
                 try: item['trim_end'] = float(data['trim_end'])
                 except: pass
+            if 'lyrics' in data:
+                item['lyrics'] = data['lyrics']
 
             # Propagate to Current Track (Live Update)
             with state_lock:
@@ -1174,6 +1176,7 @@ def update_library_item():
                      if 'volume' in data: state['current_track']['volume'] = item['volume']
                      if 'trim_start' in data: state['current_track']['trim_start'] = item['trim_start']
                      if 'trim_end' in data: state['current_track']['trim_end'] = item['trim_end']
+                     if 'lyrics' in data: state['current_track']['lyrics'] = item['lyrics']
             
             # Art Upload
             if 'art' in request.files:

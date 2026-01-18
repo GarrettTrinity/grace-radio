@@ -100,6 +100,8 @@
                         onchange="setVolume(this.value)">
                     <button class="control-btn primary" id="sync-btn" onclick="togglePlayStop()"
                         title="Start/Stop Playback">▶ Play</button>
+                    <button class="control-btn" onclick="openLyricsModal()" title="View Lyrics"
+                        style="margin-left:5px;">🎤</button>
                     {% if is_admin %}
                     <br>
                     <div class="admin-toolbar"
@@ -328,6 +330,11 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label>Synced Lyrics (LRC)</label>
+                    <textarea id="edit-lyrics" rows="5" placeholder="[00:12.50] Lyric line..."
+                        style="width:100%; background:#222; color:#0f0; border:1px solid #444; font-family:monospace; padding:10px; font-size:0.9em;"></textarea>
+                </div>
+                <div class="form-group">
                     <label>Folder / Artist (Optional)</label>
                     <input type="text" id="edit-folder" list="folder-datalist"
                         placeholder="Select or type new folder...">
@@ -356,6 +363,19 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- MODAL: LYRICS -->
+    <div id="lyrics-modal" class="modal">
+        <div class="modal-content"
+            style="max-width:500px; height:70vh; display:flex; flex-direction:column; background:rgba(20,20,20,0.95); border:1px solid #444;">
+            <span class="close" onclick="closeLyricsModal()">&times;</span>
+            <h2 style="margin-bottom:10px; font-size:1.2em; text-align:center;">Lyrics</h2>
+            <div id="lyrics-container"
+                style="flex:1; overflow-y:auto; padding:20px; text-align:center; scroll-behavior:smooth; font-size:1.2em; line-height:2em;">
+                <p style="color:#666;">No lyrics available.</p>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Server-side flag

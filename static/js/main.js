@@ -1,7 +1,8 @@
 let currentMediaId = null;
 let isPlaying = false;
 let userInteracted = false;
-let userManuallyStopped = false; // Flag to prevent auto-resync
+let userManuallyStopped = false;
+let currentLyrics = []; // Synced Lyrics Data // Flag to prevent auto-resync
 let serverTimeOffset = 0; // Local - Server
 
 // --- Navigation ---
@@ -425,9 +426,18 @@ function handleAudioSync(state) {
 
     // Check for Track Change
     if (currentMediaId !== state.id) {
+        // Load Lyrics
+        currentLyrics = parseLRC(state.lyrics || "");
+        renderLyrics(currentLyrics);
+
         console.log("Crossfade Switch:", state.title);
         console.log("New Track Config:", { trim: state.trim_start, vol: state.volume });
         currentMediaId = state.id;
+
+        // Load Lyrics
+        console.log("Lyrics available:", !!state.lyrics);
+        currentLyrics = parseLRC(state.lyrics || "");
+        renderLyrics(currentLyrics);
 
         const prevDeck = decks[activeDeckIndex];
         activeDeckIndex = (activeDeckIndex + 1) % 2;
@@ -1044,6 +1054,7 @@ function openEditModal(item) {
     document.getElementById('edit-category').value = item.category || 'Music';
     document.getElementById('edit-trim-start').value = item.trim_start || '';
     document.getElementById('edit-trim-end').value = item.trim_end || '';
+    document.getElementById('edit-lyrics').value = item.lyrics || '';
 
     // Extract Folder
     // Filename: "Folder/File.mp3" or "File.mp3"
@@ -1087,6 +1098,7 @@ if (editForm) {
         fd.append('folder', document.getElementById('edit-folder').value);
         fd.append('trim_start', document.getElementById('edit-trim-start').value);
         fd.append('trim_end', document.getElementById('edit-trim-end').value);
+        fd.append('lyrics', document.getElementById('edit-lyrics').value);
 
         const artFile = document.getElementById('edit-art').files[0];
         if (artFile) {
@@ -1298,5 +1310,98 @@ async function fetchStats(sortBy) {
 
     } catch (e) {
         table.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading stats</td></tr>';
+    }
+}
+
+// --- Lyrics System ---
+function openLyricsModal() {
+    document.getElementById('lyrics-modal').style.display = 'block';
+    // Scroll to active line
+    if (currentLyrics.length) updateLyricsUI(decks[activeDeckIndex].el.currentTime, true);
+}
+function closeLyricsModal() {
+    document.getElementById('lyrics-modal').style.display = 'none';
+}
+
+function parseLRC(text) {
+    if (!text) return [];
+    text = text.replace(/\r\n/g, '\n');
+    const lines = text.split('\n');
+    // Regex for [mm:ss.xx]
+    const regex = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\](.*)/;
+    const result = [];
+    for (const line of lines) {
+        const match = line.match(regex);
+        if (match) {
+            const min = parseInt(match[1]);
+            const sec = parseInt(match[2]);
+            const msStr = match[3] || "0";
+            // if ms is 2 digits, it usually means centiseconds (x10). If 3, ms.
+            const ms = parseInt(msStr.padEnd(3, '0').substring(0, 3));
+
+            const time = min * 60 + sec + (ms / 1000);
+            const content = match[4].trim();
+            if (content) result.push({ time, text: content });
+        }
+    }
+    return result.sort((a, b) => a.time - b.time);
+}
+
+function renderLyrics(lyrics) {
+    const container = document.getElementById('lyrics-container');
+    if (!lyrics || lyrics.length === 0) {
+        container.innerHTML = '<p style="color:#666; margin-top:50px;">No synced lyrics available.<br><small>Add them in Edit Track menu (LRC format).</small></p>';
+        document.getElementById('lyrics-title').innerText = "Lyrics (Unsynced)";
+        return;
+    }
+    document.getElementById('lyrics-title').innerText = "Lyrics";
+    container.innerHTML = lyrics.map((l, i) =>
+        `<p id="lyric-line-${i}" class="lyric-line" style="margin:10px 0; transition:all 0.3s ease; color:#666; cursor:pointer;" onclick="seekToLyric(${l.time})">${l.text}</p>`
+    ).join('');
+}
+
+function seekToLyric(time) {
+    if (decks[activeDeckIndex]) {
+        decks[activeDeckIndex].el.currentTime = time;
+        // Optionally update progress bar immediately
+    }
+}
+
+function updateLyricsUI(currentTime, forceScroll = false) {
+    if (document.getElementById('lyrics-modal').style.display === 'none') return;
+
+    // Find active line
+    let activeIdx = -1;
+    for (let i = 0; i < currentLyrics.length; i++) {
+        if (currentTime >= currentLyrics[i].time) {
+            activeIdx = i;
+        } else {
+            break;
+        }
+    }
+
+    if (activeIdx !== -1) {
+        const activeId = `lyric-line-${activeIdx}`;
+        // Optimization: Don't re-query everything if ID matches last active?
+        // But simpler to just loop class updates or id lookup
+        const lines = document.getElementsByClassName('lyric-line');
+        for (let l of lines) {
+            l.style.color = '#666';
+            l.style.transform = 'scale(1)';
+            l.style.fontWeight = 'normal';
+            l.style.textShadow = 'none';
+        }
+
+        const el = document.getElementById(activeId);
+        if (el) {
+            el.style.color = '#fff';
+            el.style.transform = 'scale(1.1)';
+            el.style.fontWeight = 'bold';
+            el.style.textShadow = '0 0 10px rgba(0,255,100,0.5)';
+
+            if (forceScroll || isPlaying) { // Only auto scroll if playing
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
     }
 }
