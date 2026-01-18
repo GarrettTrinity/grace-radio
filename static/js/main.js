@@ -801,43 +801,102 @@ document.getElementById('upload-form').onsubmit = async (e) => {
 };
 
 // --- Schedule ---
+// --- Schedule ---
 function openScheduleModal(id, title) {
     document.getElementById('schedule-modal').style.display = 'block';
     document.getElementById('schedule-media-id').value = id;
     document.getElementById('schedule-item-title').innerText = title;
+    // Clear Edit Mode
+    document.getElementById('schedule-id').value = "";
+    document.getElementById('schedule-time').value = "";
+    document.querySelector('#schedule-form button').innerText = "Set Schedule";
 }
+
+function openEditScheduleModal(scheduleId, runAt, title, mediaId) {
+    document.getElementById('schedule-modal').style.display = 'block';
+    document.getElementById('schedule-media-id').value = mediaId;
+    document.getElementById('schedule-item-title').innerText = "Reschedule: " + title;
+    document.getElementById('schedule-id').value = scheduleId;
+
+    // Convert timestamp (seconds) to datetime-local (YYYY-MM-DDTHH:MM)
+    const d = new Date(runAt * 1000);
+    // Adjust for timezone offset to show local time
+    const iso = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    document.getElementById('schedule-time').value = iso;
+    document.querySelector('#schedule-form button').innerText = "Update Schedule";
+}
+
 function closeScheduleModal() { document.getElementById('schedule-modal').style.display = 'none'; }
 
 document.getElementById('schedule-form').onsubmit = async (e) => {
     e.preventDefault();
-    const id = document.getElementById('schedule-media-id').value;
-    const time = document.getElementById('schedule-time').value; // 'YYYY-MM-DDTHH:MM' in local time logic usually
+    const mid = document.getElementById('schedule-media-id').value;
+    const sid = document.getElementById('schedule-id').value;
+    const time = document.getElementById('schedule-time').value;
 
     if (!time) return;
 
-    await fetch('/api/schedule/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, run_at: time })
-    });
+    if (sid) {
+        // UPDATE
+        await fetch('/api/schedule/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: sid, run_at: time })
+        });
+    } else {
+        // ADD
+        await fetch('/api/schedule/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: mid, run_at: time })
+        });
+    }
+
     closeScheduleModal();
-    alert("Scheduled!");
+    if (document.getElementById('schedule-view').classList.contains('active')) {
+        fetchSchedule();
+    }
+    alert("Schedule Updated!");
 };
 
 async function fetchSchedule() {
-    // Currently no API to list schedule explicitly separate from internal state, 
-    // but we have status. Schedule queue is not exposed detailed in status?
-    // Wait, I did not implement GET /api/schedule full list. 
-    // Let's just mock it or skip for now as 'status' has counts.
-    // I entered 'schedule-list' in HTML but backend doesn't serve it yet.
-    // I will add a small inline request to status or just show "3 Items Scheduled".
-    // Or I'll just use the status endpoint to show count.
+    try {
+        const res = await fetch('/api/schedule/list');
+        const data = await res.json();
 
-    // Actually, let's implement a small client-side view of the library that is in schedule? 
-    // Complexity constraint. I'll just leave it empty with a message "Schedule View Pending".
+        const div = document.getElementById('schedule-list');
+        if (data.length === 0) {
+            div.innerHTML = "<p class='empty-state'>No upcoming broadcasts scheduled.</p>";
+            return;
+        }
 
-    const div = document.getElementById('schedule-list');
-    div.innerHTML = "<p style='padding:20px; color:#666;'>Schedule management list is under construction. You can add to schedule from the Library.</p>";
+        div.innerHTML = data.map(item => {
+            const date = new Date(item.run_at * 1000).toLocaleString();
+            return `
+            <div class="media-card" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex:1">
+                    <div style="color:#00ffc8; font-size:0.9em; margin-bottom:5px;">🕒 ${date}</div>
+                    <h4>${item.title}</h4>
+                    <span class="badge">${item.category}</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-card" onclick="openEditScheduleModal('${item.id}', ${item.run_at}, '${item.title.replace(/'/g, "&apos;")}', '${item.media_id}')">Edit Time</button>
+                    <button class="btn-card" style="color:#ff4444" onclick="removeScheduleItem('${item.id}')">Remove</button>
+                </div>
+            </div>
+            `;
+        }).join('');
+    } catch (e) { console.error(e); }
+}
+
+async function removeScheduleItem(id) {
+    if (!confirm("Cancel this scheduled broadcast?")) return;
+    await fetch('/api/schedule/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    });
+    fetchSchedule();
 }
 
 

@@ -510,33 +510,27 @@ def radio_loop():
                              log_loop("Dropped invalid queue item.")
 
 
-                    # 3. Shuffle
+                     # 3. Shuffle
+                     # 3. Shuffle
                     if not next_media:
                         # Filters
-                        music_cands = [m for m in state['library'] if m.get('category') == 'Music']
-                        other_cands = [m for m in state['library'] if m.get('category') != 'Temporary']
+                        # User Request: Exclude 'Sermon' from auto-shuffle.
+                        # Blocklist: 'Sermon', 'Temporary'
                         
-                        # Priority 1: Unplayed Music (not in history)
+                        blocklist = ['Sermon', 'Temporary']
+                        candidates = [m for m in state['library'] if m.get('category') not in blocklist]
+                        
+                        # Priority 1: Unplayed Candidates (History)
                         history_set = set(state['history'])
-
+                        final_cands = [m for m in candidates if m['id'] not in history_set]
                         
-                        # Try to find Music not in history
-                        final_cands = [m for m in music_cands if m['id'] not in history_set]
-                        
+                        # Priority 2: Reset (Recycle all candidates)
                         if not final_cands:
-                            # Priority 2: Unplayed Non-Temp (Sermons etc)
-                            final_cands = [m for m in other_cands if m['id'] not in history_set]
+                             final_cands = candidates
                         
+                        # Priority 3: Fallback (Anything not temporary - e.g. if only Sermons exist)
                         if not final_cands:
-                            # Priority 3: Reset! All Music (Recycle)
-                            final_cands = music_cands
-                            # Optional: clear history early? 
-                            # No, just pick from full list, ensuring we don't get stuck.
-                            # We will keep history filtering for the next turn though.
-                        
-                        if not final_cands:
-                             # Panic: Anything in library
-                             final_cands = state['library']
+                             final_cands = [m for m in state['library'] if m.get('category') != 'Temporary']
 
                         if final_cands:
                              next_media = random.choice(final_cands)
@@ -1320,7 +1314,60 @@ def add_to_schedule():
             "run_at": float(run_at)
         })
         save_data()
+        save_data()
+        save_data()
     return jsonify({"status": "scheduled"})
+
+@app.route('/api/schedule/list', methods=['GET'])
+def list_schedule():
+    res = []
+    # Sort by time
+    sorted_sched = sorted(state['schedule'], key=lambda x: x['run_at'])
+    
+    for s in sorted_sched:
+        media = next((m for m in state['library'] if m['id'] == s['media_id']), None)
+        item = s.copy()
+        if media:
+            item['title'] = media['title']
+            item['category'] = media.get('category', 'Unknown')
+            item['duration'] = media.get('duration', 0)
+        else:
+             item['title'] = "Unknown ID: " + str(s['media_id'])
+        res.append(item)
+    return jsonify(res)
+
+@app.route('/api/schedule/remove', methods=['POST'])
+def remove_schedule_item():
+    item_id = request.json.get('id')
+    with state_lock:
+        original_len = len(state['schedule'])
+        state['schedule'] = [s for s in state['schedule'] if str(s['id']) != str(item_id)]
+        if len(state['schedule']) < original_len:
+            save_data()
+            return jsonify({"status": "removed"})
+    return jsonify({"error": "not found"}), 404
+
+@app.route('/api/schedule/update', methods=['POST'])
+def update_schedule_item():
+    data = request.json
+    item_id = data.get('id')
+    new_run_at = data.get('run_at')
+    
+    # Parse timestamp
+    try:
+        if isinstance(new_run_at, str):
+             dt = datetime.fromisoformat(new_run_at.replace('Z', '+00:00'))
+             new_run_at = dt.timestamp()
+    except:
+        return jsonify({"error": "invalid timestamp"}), 400
+
+    with state_lock:
+        item = next((s for s in state['schedule'] if str(s['id']) == str(item_id)), None)
+        if item:
+            item['run_at'] = float(new_run_at)
+            save_data()
+            return jsonify({"status": "updated"})
+    return jsonify({"error": "not found"}), 404
 
 @app.route('/api/delete/<media_id>', methods=['DELETE'])
 def delete_media(media_id):
