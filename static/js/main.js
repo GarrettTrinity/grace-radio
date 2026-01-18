@@ -440,7 +440,8 @@ function handleAudioSync(state) {
         nextDeck.el.load();
 
         if (nextDeck.preAmp) {
-            nextDeck.preAmp.gain.value = state.volume || 1.0;
+            // Handle 0 vs undefined
+            nextDeck.preAmp.gain.value = (state.volume !== undefined && state.volume !== null) ? state.volume : 1.0;
         }
 
         // Logic for Trim
@@ -451,7 +452,16 @@ function handleAudioSync(state) {
         // Setup Playback
         // Backend calculates elapsed since 'start_time'. 
         // We must start playback at trimStart + elapsed.
-        nextDeck.el.currentTime = trimStart + state.elapsed;
+        const targetTime = trimStart + state.elapsed;
+        nextDeck.el.currentTime = targetTime;
+
+        // Fix: Enforce seek after metadata loads (some browsers ignore currentTime before load)
+        const seekHandler = () => {
+            console.log(`Force Seek to ${targetTime}s (Trim: ${trimStart}s)`);
+            nextDeck.el.currentTime = targetTime;
+            nextDeck.el.removeEventListener('loadedmetadata', seekHandler);
+        };
+        nextDeck.el.addEventListener('loadedmetadata', seekHandler);
 
         // CROSSFADE LOGIC
         const now = audioCtx.currentTime;
