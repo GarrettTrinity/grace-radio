@@ -481,10 +481,14 @@ def radio_loop():
                             break
                     if due_idx != -1:
                         item = state['schedule'].pop(due_idx)
-                        media = next((m for m in state['library'] if m['id'] == item['media_id']), None)
+                        log_loop(f"Processing SCHEDULED Item: {item['media_id']} (Due: {item['run_at']})")
+                        
+                        media = next((m for m in state['library'] if str(m['id']) == str(item['media_id'])), None)
                         if media:
                             next_media = media
                             log_loop(f"Selected SCHEDULED: {media['title']}")
+                        else:
+                            log_loop(f"ERROR: Scheduled media {item['media_id']} NOT found in library. Skipped.")
 
 
                     # 2. Queue
