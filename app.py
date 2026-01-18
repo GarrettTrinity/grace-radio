@@ -29,8 +29,8 @@ if not os.path.exists(STORAGE_DIR):
 # If on Render and Disk is mounted, STORAGE_DIR will exist.
 # But for local dev (Windows), it won't.
 if os.name == 'nt': # Windows
-    STORAGE_DIR = 'static/media'
-    print("Running on Windows (Local Dev). Using static/media")
+    STORAGE_DIR = os.path.join(app.root_path, 'static', 'media')
+    print(f"Running on Windows (Local Dev). Using {STORAGE_DIR}")
 else:
     # Linux (Render) -> Check if mount exists, else fallback
     # DEBUG: Print what we see
@@ -1313,8 +1313,6 @@ def add_to_schedule():
             "media_id": media_id,
             "run_at": float(run_at)
         })
-        save_data()
-        save_data()
         save_data()
     return jsonify({"status": "scheduled"})
 
