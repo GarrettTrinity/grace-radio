@@ -678,11 +678,14 @@ def get_status():
         now = time.time()
         current = state['current_track']
         
-        # Calculate elapsed
-        elapsed = 0
-        if current and state['playing']:
-            elapsed = now - current['start_time']
-            if elapsed < 0: elapsed = 0
+        # Auto-Repair properties from library if missing (e.g. lyrics)
+        if current:
+            lib_item = next((m for m in state['library'] if str(m['id']) == str(current['id'])), None)
+            if lib_item:
+                if 'lyrics' not in current and 'lyrics' in lib_item:
+                     current['lyrics'] = lib_item['lyrics']
+                # Sync other props if stale? Optionally.
+        
         # Calculate elapsed
         elapsed = 0
         if current and state['playing']:
