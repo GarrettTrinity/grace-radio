@@ -68,6 +68,7 @@ state = {
     "schedule": [],       # List of {id, run_at_timestamp, media_id}
     "history": [],        # IDs of played songs
     "votes": [],          # List of {track_id, timestamp, vote}
+    "deleted_files": [],  # BLOCKLIST: Filenames that have been explicitly deleted
     "current_track": None, # { ...media_obj, start_time: timestamp }
     "playing": False
 }
@@ -141,6 +142,7 @@ def load_data():
                 data = json.load(f)
                 state['library'] = data.get('library', [])
                 state['schedule'] = data.get('schedule', [])
+                state['deleted_files'] = data.get('deleted_files', [])
                 loaded_from_disk = True
                 
                 # Cleanup Duplicates (Root vs Folder)
@@ -180,6 +182,9 @@ def load_data():
     if os.path.exists(local_static):
         added_count = 0
         for filename in os.listdir(local_static):
+            if filename in state.get('deleted_files', []):
+                 continue
+
             if allowed_file(filename):
                 # Check if already in library (by filename)
                 # IMPORTANT: Use string comparison
@@ -238,7 +243,8 @@ def save_data():
         with open(DATA_FILE, 'w') as f:
             json.dump({
                 "library": state['library'],
-                "schedule": state['schedule']
+                "schedule": state['schedule'],
+                "deleted_files": state['deleted_files']
             }, f, indent=2)
             f.flush()
             os.fsync(f.fileno()) # FORCE WRITE TO DISK
@@ -1334,6 +1340,13 @@ def delete_media(media_id):
                          os.remove(path_l)
             except:
                 pass
+
+            # Tombstone: Prevent bundled files from reappearing
+            # Store the basename of the file
+            bn = os.path.basename(item['filename'])
+            if bn not in state['deleted_files']:
+                state['deleted_files'].append(bn)
+
             state['library'] = [m for m in state['library'] if m['id'] != media_id]
             state['queue'] = [q for q in state['queue'] if q != media_id]
             state['schedule'] = [s for s in state['schedule'] if s['media_id'] != media_id]
