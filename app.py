@@ -1166,11 +1166,15 @@ def update_library_item():
                 try: item['trim_end'] = float(data['trim_end'])
                 except: pass
             if 'lyrics' in data:
+                print(f"DEBUG: Received lyrics update. Length: {len(data['lyrics'])}")
                 item['lyrics'] = data['lyrics']
+            else:
+                print("DEBUG: No lyrics in update request.")
 
             # Propagate to Current Track (Live Update)
             # Already inside state_lock
             if state.get('current_track') and str(state['current_track']['id']) == str(mid):
+                 print("DEBUG: Propagating to current_track")
                  if 'title' in data: state['current_track']['title'] = item['title']
                  if 'category' in data: state['current_track']['category'] = item['category']
                  if 'volume' in data: state['current_track']['volume'] = item['volume']

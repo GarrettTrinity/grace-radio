@@ -1118,39 +1118,41 @@ if (editForm) {
             fd.append('art', artFile);
         }
 
-        const btn = editForm.querySelector('button[type="submit"]');
-        btn.innerText = "Saving...";
-        btn.disabled = true;
+        const submitBtn = editForm.querySelector('button[type="submit"]');
+        const origText = submitBtn.innerText;
+        submitBtn.innerText = "Saving...";
+        submitBtn.disabled = true;
 
         try {
             const res = await fetch('/api/library/update', {
                 method: 'POST',
-                // headers: { 'Content-Type': 'multipart/form-data' }, // FETCH Auto-sets boundary for FormData! Do NOT set manually.
                 body: fd
             });
-            const rawText = await res.text();
-
             if (res.ok) {
+                const data = await res.json();
+
+                // VERIFICATION
+                const sentLyrics = document.getElementById('edit-lyrics').value || "";
+                const savedLyrics = (data.item && data.item.lyrics) || "";
+
+                if (sentLyrics !== savedLyrics) {
+                    alert(`WARNING: Mismatch!\nSent: ${sentLyrics.length}\nSaved: ${savedLyrics.length}\nTry again?`);
+                }
+
                 closeEditModal();
                 fetchLibrary();
-                // alert("Updated!");
             } else {
-                let errorMsg = "Unknown Error";
-                try {
-                    const json = JSON.parse(rawText);
-                    errorMsg = json.error || "Unknown Server Error";
-                } catch (e) {
-                    errorMsg = "Server Error (HTML): " + rawText.substring(0, 100);
-                }
-                alert("Update failed: " + errorMsg);
+                const text = await res.text();
+                alert("Error saving: " + text);
             }
         } catch (e) {
             console.error(e);
-            alert("Error: " + e);
+            alert("Network Error: " + e.message);
         } finally {
-            btn.innerText = "Save Changes";
-            btn.disabled = false;
+            submitBtn.innerText = origText;
+            submitBtn.disabled = false;
         }
+
     };
 }
 
