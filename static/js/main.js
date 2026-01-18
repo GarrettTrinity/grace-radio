@@ -520,6 +520,10 @@ function handleAudioSync(state) {
             if (state.volume !== undefined && deck.preAmp) {
                 deck.preAmp.gain.value = state.volume;
             }
+            if (state.lyrics !== undefined) {
+                currentLyrics = parseLRC(state.lyrics || "");
+                renderLyrics(currentLyrics);
+            }
         }
 
         // Drifting check?
@@ -1045,40 +1049,44 @@ async function refreshFolderList() {
 }
 
 function openEditModal(item) {
-    document.getElementById('edit-id').value = item.id;
-    document.getElementById('edit-title').value = item.title;
-    document.getElementById('edit-category').value = item.category || 'Music';
-    document.getElementById('edit-trim-start').value = item.trim_start || '';
-    document.getElementById('edit-trim-end').value = item.trim_end || '';
-    document.getElementById('edit-lyrics').value = item.lyrics || '';
+    try {
+        console.log("Opening Edit for:", item);
+        document.getElementById('edit-id').value = item.id;
+        document.getElementById('edit-title').value = item.title;
+        document.getElementById('edit-category').value = item.category || 'Music';
+        document.getElementById('edit-trim-start').value = item.trim_start || '';
+        document.getElementById('edit-trim-end').value = item.trim_end || '';
+        document.getElementById('edit-lyrics').value = item.lyrics || '';
 
-    // Extract Folder
-    // Filename: "Folder/File.mp3" or "File.mp3"
-    // Using forward slash as standard (or backslash check)
-    let fname = item.filename || '';
-    fname = fname.replace(/\\/g, '/');
-    const parts = fname.split('/');
-    let folder = '';
-    if (parts.length > 1) {
-        folder = parts.slice(0, -1).join('/');
+        // Extract Folder
+        let fname = item.filename || '';
+        fname = fname.replace(/\\/g, '/');
+        const parts = fname.split('/');
+        let folder = '';
+        if (parts.length > 1) {
+            folder = parts.slice(0, -1).join('/');
+        }
+        const folderInput = document.getElementById('edit-folder');
+        if (folderInput) folderInput.value = folder;
+
+        // Art Preview
+        const preview = document.getElementById('current-art-preview');
+        const artInput = document.getElementById('edit-art');
+        if (artInput) artInput.value = ""; // Reset file
+
+        if (item.art) {
+            preview.innerHTML = `<img src="${item.art}" style="height:50px; border-radius:4px;"> <span style="font-size:0.8em; color:#aaa;">Current Art</span>`;
+        } else {
+            preview.innerHTML = ``;
+        }
+
+        refreshFolderList(); // Async fetch suggestions
+
+        document.getElementById('edit-modal').style.display = 'block';
+    } catch (e) {
+        alert("CRITICAL EDIT ERROR: " + e.message);
+        console.error(e);
     }
-    const folderInput = document.getElementById('edit-folder');
-    if (folderInput) folderInput.value = folder;
-
-    // Art Preview
-    const preview = document.getElementById('current-art-preview');
-    const artInput = document.getElementById('edit-art');
-    if (artInput) artInput.value = ""; // Reset file
-
-    if (item.art) {
-        preview.innerHTML = `<img src="${item.art}" style="height:50px; border-radius:4px;"> <span style="font-size:0.8em; color:#aaa;">Current Art</span>`;
-    } else {
-        preview.innerHTML = ``;
-    }
-
-    refreshFolderList(); // Async fetch suggestions
-
-    document.getElementById('edit-modal').style.display = 'block';
 }
 function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
 
