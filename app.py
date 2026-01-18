@@ -190,7 +190,6 @@ def load_data():
                  continue
 
             if allowed_file(filename):
-                # Check if already in library (by filename)
                 # IMPORTANT: Use string comparison
                 # Check if already in library (by filename or basename)
                 if any(os.path.basename(m['filename']) == filename for m in state['library']):
@@ -590,7 +589,6 @@ def radio_loop():
                 with open("loop_debug.log", "a") as f:
                     f.write(f"CRASH: {e}\n")
             except: pass
-            time.sleep(5)
             
         time.sleep(1)
 
@@ -670,7 +668,6 @@ def admin_dashboard():
 
 @app.route('/api/status')
 def get_status():
-    # Update listener heartbeat
     # Update listener heartbeat
     # Only count valid clients with Listener ID (Filters bots)
     lid = request.headers.get('X-Listener-ID')
@@ -1165,6 +1162,18 @@ def update_library_item():
             if 'trim_end' in data: 
                 try: item['trim_end'] = float(data['trim_end'])
                 except: pass
+            if 'trim_end' in data: 
+                try: item['trim_end'] = float(data['trim_end'])
+                except: pass
+
+            # Propagate to Current Track (Live Update)
+            with state_lock:
+                 if state.get('current_track') and str(state['current_track']['id']) == str(mid):
+                     if 'title' in data: state['current_track']['title'] = item['title']
+                     if 'category' in data: state['current_track']['category'] = item['category']
+                     if 'volume' in data: state['current_track']['volume'] = item['volume']
+                     if 'trim_start' in data: state['current_track']['trim_start'] = item['trim_start']
+                     if 'trim_end' in data: state['current_track']['trim_end'] = item['trim_end']
             
             # Art Upload
             if 'art' in request.files:

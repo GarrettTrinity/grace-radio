@@ -426,6 +426,7 @@ function handleAudioSync(state) {
     // Check for Track Change
     if (currentMediaId !== state.id) {
         console.log("Crossfade Switch:", state.title);
+        console.log("New Track Config:", { trim: state.trim_start, vol: state.volume });
         currentMediaId = state.id;
 
         const prevDeck = decks[activeDeckIndex];
@@ -505,8 +506,18 @@ function handleAudioSync(state) {
         nextDeck.el.play().catch(e => console.error("Play failed", e));
 
     } else {
-        // Drifting check?
+        // Same Track - Live Update Props
         const deck = decks[activeDeckIndex];
+        if (deck) {
+            deck.trimStart = state.trim_start || 0;
+            deck.trimEnd = state.trim_end || state.duration;
+            if (state.volume !== undefined && deck.preAmp) {
+                deck.preAmp.gain.value = state.volume;
+            }
+        }
+
+        // Drifting check?
+        // This check should apply to the currently active deck
         if (deck && !deck.el.paused && Math.abs(deck.el.currentTime - state.elapsed) > 8) {
             console.log("Resyncing time...");
             deck.el.currentTime = state.elapsed;
