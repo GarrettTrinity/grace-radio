@@ -832,23 +832,26 @@ document.getElementById('schedule-form').onsubmit = async (e) => {
     e.preventDefault();
     const mid = document.getElementById('schedule-media-id').value;
     const sid = document.getElementById('schedule-id').value;
-    const time = document.getElementById('schedule-time').value;
+    const timeStr = document.getElementById('schedule-time').value;
 
-    if (!time) return;
+    if (!timeStr) return;
+
+    // Convert Local DOM String to UTC Timestamp (Seconds)
+    const runAt = new Date(timeStr).getTime() / 1000;
 
     if (sid) {
         // UPDATE
         await fetch('/api/schedule/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: sid, run_at: time })
+            body: JSON.stringify({ id: sid, run_at: runAt })
         });
     } else {
         // ADD
         await fetch('/api/schedule/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: mid, run_at: time })
+            body: JSON.stringify({ id: mid, run_at: runAt })
         });
     }
 
