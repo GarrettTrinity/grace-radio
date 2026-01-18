@@ -448,12 +448,18 @@ def radio_loop():
                     dur = current.get('duration', 1)
                     if not isinstance(dur, (int, float)) or dur <= 0: dur = 10
                     
+                    # Trim Logic:
+                    trim_start = current.get('trim_start', 0)
+                    trim_end = current.get('trim_end', dur)
+                    effective_dur = trim_end - trim_start
+                    if effective_dur <= 0: effective_dur = dur # Safety fallback
+
                     elapsed = now - current['start_time']
                     
-                    # Normal Finish
-                    if elapsed >= dur + 1: # 1s buffer
+                    # Normal Finish (using trimmed duration)
+                    if elapsed >= effective_dur + 1: # 1s buffer
                         should_pick = True
-                        log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {dur}s)")
+                        log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {effective_dur}s [Trimged])")
                     
                     # Overdue Failsafe (Safety Net)
                     elif elapsed > (dur + 10):
@@ -1150,6 +1156,15 @@ def update_library_item():
         if item:
             if 'title' in data: item['title'] = data['title']
             if 'category' in data: item['category'] = data['category']
+            if 'volume' in data: 
+                try: item['volume'] = float(data['volume'])
+                except: pass
+            if 'trim_start' in data: 
+                try: item['trim_start'] = float(data['trim_start'])
+                except: pass
+            if 'trim_end' in data: 
+                try: item['trim_end'] = float(data['trim_end'])
+                except: pass
             
             # Art Upload
             if 'art' in request.files:

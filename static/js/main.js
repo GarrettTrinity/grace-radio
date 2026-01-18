@@ -83,8 +83,9 @@ function setupDeck(id) {
         high = audioCtx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 3200;
 
         gain = audioCtx.createGain();
+        preAmp = audioCtx.createGain();
 
-        source.connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
+        source.connect(preAmp).connect(low).connect(mid).connect(high).connect(gain).connect(audioCtx.destination);
     } else {
         console.log("Mobile detected: Native Audio Mode (No Web Audio Graph)");
     }
@@ -108,22 +109,36 @@ function setupDeck(id) {
 
     el.ontimeupdate = () => {
         if (!decks.length) return;
-        if (decks[activeDeckIndex].el !== el) return; // Only update UI for active deck
+        const deck = decks[activeDeckIndex];
+        if (deck.el !== el) return; // Only update UI for active deck
 
         const dur = el.duration;
         const cur = el.currentTime;
         if (dur && !isNaN(dur) && dur > 0) {
-            const pct = (cur / dur) * 100;
+            // Trim visualization
+            const tStart = deck.trimStart || 0;
+            const tEnd = deck.trimEnd || dur;
+
+            let effDur = tEnd - tStart;
+            if (effDur <= 0) effDur = dur; // Fallback
+
+            let effCur = cur - tStart;
+            if (effCur < 0) effCur = 0;
+            if (effCur > effDur) effCur = effDur;
+
+            const pct = (effCur / effDur) * 100;
             const bar = document.getElementById('progress-bar');
             if (bar) bar.style.width = pct + '%';
+
             const c = document.getElementById('current-time');
-            if (c) c.innerText = formatTime(cur);
+            if (c) c.innerText = formatTime(effCur);
+
             const t = document.getElementById('total-time');
-            if (t) t.innerText = formatTime(dur);
+            if (t) t.innerText = formatTime(effDur);
         }
     };
 
-    return { el, source, low, mid, high, gain, currentId: null };
+    return { el, source, low, mid, high, gain, preAmp, currentId: null };
 }
 
 // Auto-Init on first interaction
@@ -424,8 +439,19 @@ function handleAudioSync(state) {
         nextDeck.el.src = url;
         nextDeck.el.load();
 
+        if (nextDeck.preAmp) {
+            nextDeck.preAmp.gain.value = state.volume || 1.0;
+        }
+
+        // Logic for Trim
+        const trimStart = state.trim_start || 0;
+        nextDeck.trimStart = trimStart;
+        nextDeck.trimEnd = state.trim_end || state.duration;
+
         // Setup Playback
-        nextDeck.el.currentTime = state.elapsed;
+        // Backend calculates elapsed since 'start_time'. 
+        // We must start playback at trimStart + elapsed.
+        nextDeck.el.currentTime = trimStart + state.elapsed;
 
         // CROSSFADE LOGIC
         const now = audioCtx.currentTime;
@@ -500,11 +526,17 @@ function openEQModal() {
         document.getElementById('eq-low').value = deck.low.gain.value;
         document.getElementById('eq-mid').value = deck.mid.gain.value;
         document.getElementById('eq-high').value = deck.high.gain.value;
+        if (deck.preAmp) {
+            document.getElementById('eq-vol').value = deck.preAmp.gain.value;
+        } else {
+            document.getElementById('eq-vol').value = 1.0;
+        }
     } else {
         // Mobile fallback - just show default
         document.getElementById('eq-low').value = 0;
         document.getElementById('eq-mid').value = 0;
         document.getElementById('eq-high').value = 0;
+        document.getElementById('eq-vol').value = 1.0;
     }
 
     updateEQLabels();
@@ -518,14 +550,17 @@ function closeEQModal() { document.getElementById('eq-modal').style.display = 'n
 document.getElementById('eq-low').oninput = updateEQLabels;
 document.getElementById('eq-mid').oninput = updateEQLabels;
 document.getElementById('eq-high').oninput = updateEQLabels;
+document.getElementById('eq-vol').oninput = updateEQLabels;
 
 function updateEQLabels() {
     const low = document.getElementById('eq-low').value;
     const mid = document.getElementById('eq-mid').value;
     const high = document.getElementById('eq-high').value;
+    const vol = document.getElementById('eq-vol').value;
     document.getElementById('val-low').innerText = low;
     document.getElementById('val-mid').innerText = mid;
     document.getElementById('val-high').innerText = high;
+    document.getElementById('val-vol').innerText = vol;
 
     // Live Review: Apply to Active Deck
     if (decks.length) {
@@ -534,6 +569,9 @@ function updateEQLabels() {
             deck.low.gain.value = low;
             deck.mid.gain.value = mid;
             deck.high.gain.value = high;
+        }
+        if (deck.preAmp) {
+            deck.preAmp.gain.value = vol;
         }
     }
 }
@@ -552,7 +590,8 @@ async function saveEQ() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: currentMediaId,
-                eq: settings
+                eq: settings,
+                volume: parseFloat(document.getElementById('eq-vol').value)
             })
         });
         if (res.ok) {
@@ -977,6 +1016,8 @@ function openEditModal(item) {
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-title').value = item.title;
     document.getElementById('edit-category').value = item.category || 'Music';
+    document.getElementById('edit-trim-start').value = item.trim_start || '';
+    document.getElementById('edit-trim-end').value = item.trim_end || '';
 
     // Extract Folder
     // Filename: "Folder/File.mp3" or "File.mp3"
@@ -1018,6 +1059,8 @@ if (editForm) {
         fd.append('title', document.getElementById('edit-title').value);
         fd.append('category', document.getElementById('edit-category').value);
         fd.append('folder', document.getElementById('edit-folder').value);
+        fd.append('trim_start', document.getElementById('edit-trim-start').value);
+        fd.append('trim_end', document.getElementById('edit-trim-end').value);
 
         const artFile = document.getElementById('edit-art').files[0];
         if (artFile) {
