@@ -47,6 +47,14 @@ function initAudio() {
     try {
         decks = [setupDeck('radio-audio'), setupDeck('radio-audio-2')];
         audioCtx.resume();
+
+        // UNLOCK MOBILE AUDIO: Force localized play/pause
+        decks.forEach(d => {
+            d.el.load(); // Refresh state
+            const p = d.el.play();
+            if (p) p.then(() => d.el.pause()).catch(e => { }); // Silent catch
+        });
+
         audioInitialized = true;
 
         if ('mediaSession' in navigator) {
@@ -193,6 +201,11 @@ function togglePlayStop() {
         btn.title = "Stop Playback";
         btn.classList.remove('primary');
         btn.style.background = '#ff4444';
+
+        // Direct interaction play (Critical for Mobile Resume)
+        if (decks.length && decks[activeDeckIndex].el.src) {
+            decks[activeDeckIndex].el.play().catch(() => { });
+        }
 
         // Trigger sync
         updateStatus();
