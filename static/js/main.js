@@ -526,6 +526,15 @@ function handleAudioSync(state) {
                 currentLyrics = parseLRC(raw);
                 renderLyrics(currentLyrics, raw);
             }
+
+            // AUTO-RESUME: If we should be playing but aren't
+            if (deck && deck.el.paused && !deck.el.ended && deck.el.error === null) {
+                console.warn("Sync: Track matches but deck is paused. Resuming...");
+                const playPromise = deck.el.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.error("Auto-Resume failed:", e));
+                }
+            }
         }
 
         // Drifting check?
