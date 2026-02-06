@@ -4,6 +4,7 @@ let userInteracted = false;
 let userManuallyStopped = false;
 let currentLyrics = []; // Synced Lyrics Data // Flag to prevent auto-resync
 let serverTimeOffset = 0; // Local - Server
+let lastPlayRequestTime = 0; // Timestamp of last manual play
 
 // --- Navigation ---
 function switchTab(tabId) {
@@ -122,6 +123,9 @@ function setupDeck(id) {
         // Fix: Ignore 'ended' event if this deck is not the active one (e.g. fading out)
         if (decks[activeDeckIndex] && decks[activeDeckIndex].el !== el) return;
 
+        // Fix: Ignore silence unlock track ending
+        if (el.src && el.src.startsWith("data:")) return;
+
         console.log("Track Ended (Active Deck). Force Sync.");
         currentMediaId = null; // Force refresh detection
         updateStatus(); // Immediate call
@@ -209,6 +213,7 @@ function togglePlayStop() {
     } else {
         // User wants to PLAY
         userManuallyStopped = false; // Reset flag
+        lastPlayRequestTime = Date.now(); // Mark intent
 
         btn.innerText = "■ Stop";
         btn.title = "Stop Playback";
@@ -337,9 +342,12 @@ function updatePlayerUI(state, queueList, userVote) {
             // Only if we expected it to be playing?
             // Actually, if it stopped on its own (buffer underrun?), we might want to show Play.
             else if (!isPlayingAudio && btnIsStop) {
-                btn.innerText = "▶ Play";
-                btn.classList.add('primary');
-                btn.style.background = '';
+                // Only revert to Play if enough time has passed (to allow buffering/unlocking)
+                if (Date.now() - lastPlayRequestTime > 3000) {
+                    btn.innerText = "▶ Play";
+                    btn.classList.add('primary');
+                    btn.style.background = '';
+                }
             }
         }
 
