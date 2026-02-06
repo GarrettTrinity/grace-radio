@@ -346,6 +346,7 @@ def get_active_listeners():
             listeners.pop(k, None)
         return len(listeners)
 
+
 def radio_loop():
     print(f"--- Radio Loop Started (PID: {os.getpid()}) ---")
     
@@ -360,9 +361,10 @@ def radio_loop():
     with state_lock:
         log_loop(f"Library size: {len(state.get('library', []))}")
 
+    last_disk_check = 0
+
     while True:
         # Ghost Thread Check: Am I the official thread?
-        # Note: We need a small delay on startup to allow the global var to be set
         if radio_thread and radio_thread != threading.current_thread():
              log_loop("I am a GHOST thread (replaced). Exiting.")
              break
@@ -370,6 +372,14 @@ def radio_loop():
         try:
             time.sleep(1.0) # Tick
             now = time.time()
+            
+            # --- Failsafe: Re-bootstrap if empty ---
+            if not state['library']:
+                # Maybe disk wasn't ready? Try reloading
+                if now - last_disk_check > 10:
+                    log_loop("Library is empty! Attempting force reload/bootstrap...")
+                    load_data()
+                    last_disk_check = now
             
             with state_lock:
                 # --- Queue Maintenance (Inline to ensure execution) ---
@@ -396,7 +406,6 @@ def radio_loop():
                         
                         if added_count > 0:
                             save_data()
-                            # log_loop(f"Refilled queue with {added_count} items")
                 
                 # Check for Hot Reload
                 try:
@@ -412,7 +421,6 @@ def radio_loop():
                                     state['schedule'] = data.get('schedule', [])
                                     state['last_disk_read'] = stat.st_mtime
                                     print(f"RELOAD COMPLETE. New size: {len(state['library'])}")
-                                    # Fix Queue Type Mismatches immediately after reload
                                     state['queue'] = [str(x) for x in state['queue']]
                 except Exception as e:
                     print(f"HOT RELOAD FAILED: {e}")
@@ -456,9 +464,9 @@ def radio_loop():
                     elapsed = now - current['start_time']
                     
                     # Normal Finish (using trimmed duration)
-                    if elapsed >= effective_dur + 1: # 1s buffer
+                    if elapsed >= effective_dur: # Removed buffer, just strict
                         should_pick = True
-                        log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {effective_dur}s [Trimged])")
+                        log_loop(f"Picking: Track Finished ({elapsed:.1f}s / {effective_dur}s)")
                     
                     # Overdue Failsafe (Safety Net)
                     elif elapsed > (dur + 10):
@@ -474,16 +482,12 @@ def radio_loop():
 
                 if should_pick:
                     # SYNC: Read fresh queue from disk before deciding
-                    # We need to be careful not to overwrite 'current_track' if playing
-                    # Just read 'queue' from state.json
                     try:
                         if os.path.exists(STATE_FILE):
                              with open(STATE_FILE, 'r') as f:
                                  s_data = json.load(f)
-                                 # Merge external queue additions
                                  disk_queue = s_data.get('queue', [])
-                                 # If disk queue has items and local doesn't, or different, take disk
-                                 # Simplest: Trust disk fully for queue
+                                 # Trust disk fully for queue
                                  state['queue'] = disk_queue
                     except: pass
 
@@ -514,42 +518,27 @@ def radio_loop():
                          media_id = state['queue'][0] # Peek first
                          log_loop(f"Peeking Queue ID: {media_id}")
                          
-                         # Type safe check
                          media = next((m for m in state['library'] if str(m['id']) == str(media_id)), None)
                          
                          if media:
-                             # Valid item found, consume it
                              state['queue'].pop(0)
                              next_media = media
                              log_loop(f"Selected QUEUED: {media['title']}")
                          else:
-                             log_loop(f"Queue ID {media_id} NOT found in Library ({len(state['library'])} items).")
-                             # Try reloading
-                             # ... (omitted for brevity, assume disk reload if critical, or just drop)
-                             # Let's just drop it to unblock
+                             log_loop(f"Queue ID {media_id} NOT found in Library.")
                              state['queue'].pop(0)
-                             log_loop("Dropped invalid queue item.")
 
-
-                     # 3. Shuffle
                      # 3. Shuffle
                     if not next_media:
-                        # Filters
-                        # User Request: Exclude 'Sermon' from auto-shuffle.
-                        # Blocklist: 'Sermon', 'Temporary'
-                        
                         blocklist = ['Sermon', 'Temporary']
                         candidates = [m for m in state['library'] if m.get('category') not in blocklist]
                         
-                        # Priority 1: Unplayed Candidates (History)
                         history_set = set(state['history'])
                         final_cands = [m for m in candidates if m['id'] not in history_set]
                         
-                        # Priority 2: Reset (Recycle all candidates)
                         if not final_cands:
                              final_cands = candidates
                         
-                        # Priority 3: Fallback (Anything not temporary - e.g. if only Sermons exist)
                         if not final_cands:
                              final_cands = [m for m in state['library'] if m.get('category') != 'Temporary']
 
@@ -567,17 +556,16 @@ def radio_loop():
                         # Add to history
                         state['history'].append(next_media['id'])
                         
-                        # Keep history large enough to cover most of the library
-                        # e.g. 75% of library size, or max 50
                         max_hist = max(10, len(state['library']) - 5) 
                         if len(state['history']) > max_hist:
                              state['history'].pop(0)
                     else:
                         state['current_track'] = None
                         state['playing'] = False
+                        log_loop("RADIO STOPPED: No media available.")
                     
                     # Maintain Queue Depth (Run auto-fill)
-                    ensure_queue_filled()
+                    # ensure_queue_filled() # logic is inline now
 
                     # Sync state to disk immediately
                     save_state()
@@ -598,6 +586,7 @@ thread_start_lock = threading.Lock()
 def start_radio_thread():
     global radio_thread
     with thread_start_lock:
+        # Check if actually alive
         if radio_thread is None or not radio_thread.is_alive():
             print("Starting Radio Loop Thread...")
             radio_thread = threading.Thread(target=radio_loop, daemon=True)
