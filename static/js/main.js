@@ -195,7 +195,9 @@ function togglePlayStop() {
 
         decks.forEach(d => {
             d.el.pause();
-            d.el.src = ""; // Clear buffer
+            // Do not clear src, just rewind. Clearing src breaks mobile resume.
+            // d.el.src = ""; 
+            try { d.el.currentTime = 0; } catch (e) { }
         });
         currentMediaId = null;
 
@@ -214,8 +216,16 @@ function togglePlayStop() {
         btn.style.background = '#ff4444';
 
         // Direct interaction play (Critical for Mobile Resume)
-        if (decks.length && decks[activeDeckIndex] && decks[activeDeckIndex].el && decks[activeDeckIndex].el.src) {
-            decks[activeDeckIndex].el.play().catch(() => { });
+        if (decks.length && decks[activeDeckIndex]) {
+            const deck = decks[activeDeckIndex];
+            // Mobile Unlock: Ensure we have a valid source to play synchronously
+            // If src is missing, the browser denies 'play()' promise. 
+            // We prime it with silence if needed.
+            if (!deck.el.src || deck.el.src === window.location.href || deck.el.src.endsWith('/')) {
+                console.log("Priming audio with silence for mobile unlock...");
+                deck.el.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+            }
+            deck.el.play().catch(e => console.warn("Manual Play Trigger Failed:", e));
         }
 
         // Trigger sync
