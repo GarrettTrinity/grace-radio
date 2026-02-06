@@ -42,10 +42,20 @@ function updateCrossfade(val) {
     if (span) span.innerText = crossfadeDuration + 's';
 }
 
+function initDecks() {
+    if (decks.length > 0) return;
+    try {
+        decks = [setupDeck('radio-audio'), setupDeck('radio-audio-2')];
+    } catch (e) { console.error("Deck Init Failed", e); }
+}
+
+// Eager Initialization for Mobile Compat
+document.addEventListener('DOMContentLoaded', initDecks);
+
 function initAudio() {
     if (audioInitialized) return;
     try {
-        decks = [setupDeck('radio-audio'), setupDeck('radio-audio-2')];
+        initDecks();
         audioCtx.resume();
 
         // UNLOCK MOBILE AUDIO: Force localized play/pause
