@@ -85,6 +85,7 @@ function initAudio() {
 
 function setupDeck(id) {
     const el = document.getElementById(id);
+    if (!el) throw new Error("Audio Element Missing: " + id);
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     let source = null;
@@ -213,7 +214,7 @@ function togglePlayStop() {
         btn.style.background = '#ff4444';
 
         // Direct interaction play (Critical for Mobile Resume)
-        if (decks.length && decks[activeDeckIndex].el.src) {
+        if (decks.length && decks[activeDeckIndex] && decks[activeDeckIndex].el && decks[activeDeckIndex].el.src) {
             decks[activeDeckIndex].el.play().catch(() => { });
         }
 
