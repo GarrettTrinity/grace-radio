@@ -223,20 +223,28 @@ function togglePlayStop() {
         // Direct interaction play (Critical for Mobile Resume)
         if (decks.length && decks[activeDeckIndex]) {
             const deck = decks[activeDeckIndex];
-            // Mobile Unlock: Ensure we have a valid source to play synchronously
-            // If src is missing, the browser denies 'play()' promise. 
-            // We prime it with silence if needed.
-            if (!deck.el.src || deck.el.src === window.location.href || deck.el.src.endsWith('/')) {
-                console.log("Priming audio with silence for mobile unlock...");
-                deck.el.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
+            // OPTIMISTIC START: Immediately play the stream endpoint
+            // This satisfies the user gesture requirement without waiting for fetch
+            const streamUrl = "/api/stream/current?t=" + Date.now();
+
+            // Only force reload if empty or different
+            if (!deck.el.src || deck.el.src.includes('data:audio') || !deck.el.src.includes('api/stream')) {
+                console.log("Starting Optimistic Playback via Stream Endpoint");
+                deck.el.src = streamUrl;
             }
-            deck.el.play().catch(e => console.warn("Manual Play Trigger Failed:", e));
+
+            deck.el.play().catch(e => {
+                console.warn("Manual Play Trigger Failed:", e);
+                alert("Audio Play Failed. Please interact with the page and try again.");
+            });
         }
 
         // Trigger sync
         updateStatus();
     }
 }
+
 // Deprecated but kept for compatibility logic reuse if needed
 function syncStream() {
     togglePlayStop();
@@ -467,6 +475,18 @@ function handleAudioSync(state) {
     if (!userInteracted || !decks.length) return;
 
     // Check for Track Change
+    // Special Case: If we are playing the stream endpoint (optimistic start), 
+    // we consider the track "loaded" effectively, unless the ID has ACTUALLY changed on server side
+    // relative to what we THOUGHT we were playing. 
+    // But since currentMediaId starts null, we need to be careful.
+
+    // If active deck is playing stream URL, and we just started, adopt the new ID without reloading.
+    const deck = decks[activeDeckIndex];
+    if (currentMediaId === null && deck && deck.el && deck.el.src && deck.el.src.includes('/api/stream/current')) {
+        console.log("Optimistic Stream detected. Adopting ID: " + state.id);
+        currentMediaId = state.id;
+    }
+
     if (currentMediaId !== state.id) {
         console.log("Crossfade Switch:", state.title || "Unknown");
         currentMediaId = state.id;
